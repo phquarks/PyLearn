@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "PyLearn",
+    "slug": "pylearn",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f2fce9"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.pylearn.app"
+    },
+    "android": {
+      "package": "com.pylearn.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#f2fce9",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PyLearn uses your photos so you can set a profile picture."
+        }
+      ]
+    ]
+  }
+}

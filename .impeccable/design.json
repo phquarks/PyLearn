@@ -1,0 +1,498 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-13T12:00:00Z",
+  "title": "Design System: PyLearn",
+  "extensions": {
+    "colorMeta": {
+      "primary-container": {
+        "role": "primary",
+        "displayName": "Growth Green",
+        "canonical": "#58cc02",
+        "tonalRamp": [
+          "#122d00",
+          "#1e5000",
+          "#2b6c00",
+          "#3d8f01",
+          "#46a302",
+          "#58cc02",
+          "#8ce35c",
+          "#d4f7bd"
+        ]
+      },
+      "secondary-container": {
+        "role": "secondary",
+        "displayName": "Energy Yellow",
+        "canonical": "#fec700",
+        "tonalRamp": [
+          "#241a00",
+          "#3d2e00",
+          "#6e5400",
+          "#a07800",
+          "#d9a000",
+          "#fec700",
+          "#ffdf92",
+          "#fff3d1"
+        ]
+      },
+      "tertiary-container": {
+        "role": "tertiary",
+        "displayName": "Wisdom Blue",
+        "canonical": "#4abdff",
+        "tonalRamp": [
+          "#00202f",
+          "#00344a",
+          "#004a6b",
+          "#006590",
+          "#2b93c9",
+          "#4abdff",
+          "#a5deff",
+          "#eaf7ff"
+        ]
+      },
+      "error": {
+        "role": "error",
+        "displayName": "Alert Red",
+        "canonical": "#ba1a1a",
+        "tonalRamp": [
+          "#2c0000",
+          "#5c0002",
+          "#93000a",
+          "#ba1a1a",
+          "#de3730",
+          "#ff5449",
+          "#ffb4ab",
+          "#ffdad6"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Warm Near-White",
+        "canonical": "#faf9f9",
+        "tonalRamp": [
+          "#1a1c1c",
+          "#3f4a36",
+          "#6f7b64",
+          "#becbb1",
+          "#dadada",
+          "#e3e2e2",
+          "#f4f3f3",
+          "#faf9f9"
+        ]
+      },
+      "on-surface": {
+        "role": "neutral",
+        "displayName": "Near-Black Ink",
+        "canonical": "#1a1c1c",
+        "tonalRamp": [
+          "#0d0e0e",
+          "#1a1c1c",
+          "#2c2f2f",
+          "#3f4a36",
+          "#6f7b64",
+          "#9aa495",
+          "#c9d0c2",
+          "#eceee9"
+        ]
+      },
+      "outline-variant": {
+        "role": "neutral",
+        "displayName": "Sage Outline",
+        "canonical": "#becbb1",
+        "tonalRamp": [
+          "#1c2417",
+          "#2f3b27",
+          "#43523a",
+          "#5a6a4f",
+          "#6f7b64",
+          "#96a389",
+          "#becbb1",
+          "#e4eadd"
+        ]
+      },
+      "nav-glass": {
+        "role": "neutral",
+        "displayName": "Nav Glass",
+        "canonical": "rgba(252, 253, 251, 0.62)",
+        "tonalRamp": [
+          "rgba(252,253,251,0.10)",
+          "rgba(252,253,251,0.20)",
+          "rgba(252,253,251,0.30)",
+          "rgba(252,253,251,0.45)",
+          "rgba(252,253,251,0.62)",
+          "rgba(252,253,251,0.75)",
+          "rgba(252,253,251,0.90)",
+          "#fcfdfb"
+        ]
+      },
+      "nav-tab-wash": {
+        "role": "primary",
+        "displayName": "Tab Wash",
+        "canonical": "rgba(88, 204, 2, 0.18)",
+        "tonalRamp": [
+          "rgba(88,204,2,0.06)",
+          "rgba(88,204,2,0.12)",
+          "rgba(88,204,2,0.18)",
+          "rgba(88,204,2,0.28)",
+          "rgba(88,204,2,0.42)",
+          "rgba(88,204,2,0.60)",
+          "rgba(88,204,2,0.80)",
+          "#58cc02"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Screen titles only — 'Progress', 'Snake Shop', 'Lesson complete!'."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Unit card title and the large numerals in stat cards."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Fixed header titles, exercise prompts, feedback verdicts, profile name."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Screen default prose and the coach speech bubble."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons (uppercase, 0.02em), list rows, stat pills, tabs, prices."
+      },
+      "micro": {
+        "displayName": "Micro",
+        "purpose": "Stone captions, nav labels, achievement captions, the Premium badge."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "Every string of Python — code blocks, answer tiles, word-bank chips."
+      }
+    },
+    "shadows": [
+      {
+        "name": "stone-edge",
+        "value": "0 6px 0 0 var(--vg-primary-edge)",
+        "purpose": "Path stones and the goal chest; the deepest edge in the system. Press collapses to 0 with translateY(6px)."
+      },
+      {
+        "name": "object-edge",
+        "value": "0 4px 0 0 var(--vg-primary-edge)",
+        "purpose": "Buttons and the unit card. Press collapses to 0 with translateY(4px)."
+      },
+      {
+        "name": "small-edge",
+        "value": "0 3px 0 0 var(--vg-primary-edge)",
+        "purpose": "The shop's compact buy button."
+      },
+      {
+        "name": "selection-edge",
+        "value": "0 2px 0 0 var(--vg-surface-highest)",
+        "purpose": "Answer tiles and word-bank chips; the edge tone repaints with state (grey, blue, green, red)."
+      },
+      {
+        "name": "card-lip",
+        "value": "border: 2px solid var(--vg-surface-highest); border-bottom-width: 4px",
+        "purpose": "Non-pressable cards get the isometric silhouette from a thickened bottom border instead of a shadow."
+      },
+      {
+        "name": "inner-light",
+        "value": "inset 0 2px 4px rgba(255, 255, 255, 0.45)",
+        "purpose": "Only on the lesson progress fill and progress chart bars, to make a filled bar read as rounded plastic."
+      },
+      {
+        "name": "floating-glass",
+        "value": "0 10px 30px rgba(26, 58, 18, 0.16), 0 2px 8px rgba(31, 41, 55, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
+        "purpose": "The floating tab pill only. Wide green-tinted cast, tight neutral contact shadow, inset top highlight lighting the glass from above."
+      },
+      {
+        "name": "floating-card",
+        "value": "0 6px 16px rgba(31, 41, 55, 0.1)",
+        "purpose": "The encouragement bubble only — the quieter member of the floating-plane register."
+      },
+      {
+        "name": "nav-blur",
+        "value": "backdrop-filter: blur(22px) saturate(180%)",
+        "purpose": "Behind the tab pill, inside an @supports guard; the base rule ships a 90%-opaque fill as the no-blur fallback."
+      }
+    ],
+    "motion": [
+      {
+        "name": "press",
+        "value": "transform 100ms ease, box-shadow 100ms ease",
+        "purpose": "The sink. Every pressable object uses exactly this pair."
+      },
+      {
+        "name": "tint",
+        "value": "background 140ms ease, border-color 140ms ease, filter 140ms ease",
+        "purpose": "Hover and state colour changes."
+      },
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Arrivals: the feedback sheet rising (260ms), the lesson progress bar filling (420ms), shop art scaling on hover (260ms)."
+      },
+      {
+        "name": "fade-up",
+        "value": "fade-up 320ms ease both — opacity 0→1 with translateY(10px)→0",
+        "purpose": "Screen entry on every course surface."
+      },
+      {
+        "name": "shake",
+        "value": "shake 340ms ease both — translateX ±9/8/6/4px",
+        "purpose": "The lesson body on a wrong answer."
+      },
+      {
+        "name": "floaty",
+        "value": "floaty 3.2s ease-in-out infinite — translateY(-10px) rotate(4deg) at 50%",
+        "purpose": "The snake idling in its preview stage."
+      },
+      {
+        "name": "bob",
+        "value": "vg-bob 2.6s ease-in-out infinite — translateY(-5px) at 50%",
+        "purpose": "The encouragement bubble idling beside the live stone. Switched off under prefers-reduced-motion."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "@media (prefers-reduced-motion: reduce) { .vg-cheer, .vg-preview img, .fade-screen, .vg-feedback { animation: none } .vg-track span, .vg-node, .vg-btn, .vg-tile, .vg-chip { transition-duration: 1ms } }",
+        "purpose": "Decorative loops are removed outright; functional feedback collapses to 1ms rather than being deleted."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "design-width",
+        "value": "390px"
+      },
+      {
+        "name": "frame-max",
+        "value": "420px"
+      },
+      {
+        "name": "full-bleed",
+        "value": "max-width: 420px — the phone frame loses its border, radius and outer shadow and fills the viewport"
+      }
+    ],
+    "focus": [
+      {
+        "name": "focus-ring",
+        "value": "outline: 3px solid var(--vg-tertiary); outline-offset: 2px",
+        "purpose": "Applied on :focus-visible across .vg-screen, .vg-topbar, .vg-header, .vg-nav, .vg-lesson-top, .vg-actionbar and .vg-feedback. Wisdom blue never means 'next' or 'earned', so focus can't be misread as progress state."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one committing action on a screen: growth green on a 4px solid edge that collapses on press.",
+      "html": "<button class=\"ds-btn\">Check</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 52px; padding: 0 20px; border: 0; border-radius: 16px; background: #58cc02; box-shadow: 0 4px 0 0 #46a302; color: #fff; cursor: pointer; font-family: 'Be Vietnam Pro', sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; transition: transform 100ms ease, box-shadow 100ms ease, filter 140ms ease; } .ds-btn:hover { filter: brightness(1.05); } .ds-btn:focus-visible { outline: 3px solid #006590; outline-offset: 3px; } .ds-btn:active { transform: translateY(4px); box-shadow: 0 0 0 0 #46a302; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary navigation — white, 2px border, grey edge, moss ink.",
+      "html": "<button class=\"ds-btn-ghost\">Sign out</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 52px; padding: 0 20px; border: 2px solid #e3e2e2; border-radius: 16px; background: #fff; box-shadow: 0 4px 0 0 #e3e2e2; color: #3f4a36; cursor: pointer; font-family: 'Be Vietnam Pro', sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; transition: transform 100ms ease, box-shadow 100ms ease, filter 140ms ease; } .ds-btn-ghost:hover { filter: brightness(1.05); } .ds-btn-ghost:focus-visible { outline: 3px solid #006590; outline-offset: 3px; } .ds-btn-ghost:active { transform: translateY(4px); box-shadow: 0 0 0 0 #e3e2e2; }"
+    },
+    {
+      "name": "Path Stone (current)",
+      "kind": "custom",
+      "refersTo": "path-node-active",
+      "description": "The signature component: a 76px stone punched out of the ribbon by a 4px surface-coloured border, ringed with its own lesson progress, on a 6px edge. Positioned absolutely from the shared pathX/pathY table, never laid out in flow.",
+      "css": ".ds-stone-wrap { position: relative; display: grid; place-items: center; width: 94px; height: 94px; } .ds-stone-ring { position: absolute; inset: 0; transform: rotate(-90deg); pointer-events: none; } .ds-stone { position: relative; display: grid; width: 76px; height: 76px; place-items: center; border: 4px solid #faf9f9; border-radius: 50%; background: #58cc02; box-shadow: 0 6px 0 0 #46a302; color: #fff; cursor: pointer; transition: transform 100ms ease, box-shadow 100ms ease, filter 140ms ease; } .ds-stone .ds-sym { width: 36px; height: 36px; fill: currentColor; } .ds-stone:hover { filter: brightness(1.06); } .ds-stone:focus-visible { outline: 3px solid #006590; outline-offset: 4px; } .ds-stone:active { transform: translateY(6px); box-shadow: 0 0 0 0 #46a302; } .ds-stone-label { position: absolute; top: calc(100% + 12px); left: 50%; width: 132px; transform: translateX(-50%); color: #3f4a36; font-family: 'Be Vietnam Pro', sans-serif; font-size: 12px; font-weight: 700; line-height: 15px; text-align: center; }",
+      "html": "<div class=\"ds-stone-wrap\"><svg class=\"ds-stone-ring\" width=\"94\" height=\"94\" viewBox=\"0 0 94 94\"><circle cx=\"47\" cy=\"47\" r=\"36\" fill=\"none\" stroke=\"#e3e2e2\" stroke-width=\"7\"/><circle cx=\"47\" cy=\"47\" r=\"36\" fill=\"none\" stroke=\"#58cc02\" stroke-width=\"7\" stroke-linecap=\"round\" stroke-dasharray=\"226\" stroke-dashoffset=\"113\"/></svg><button class=\"ds-stone\"><svg class=\"ds-sym\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M8 5v14l11-7z\"/></svg><span class=\"ds-stone-label\">Variables</span></button></div>"
+    },
+    {
+      "name": "Unit Card",
+      "kind": "card",
+      "refersTo": "unit-card",
+      "description": "The only full-bleed colour field on the home screen; names the unit and reports how many stones are cleared.",
+      "html": "<section class=\"ds-unit\"><h2>Unit 1 · Python Basics</h2><p>2 of 5 stones cleared. Next up: your first program.</p></section>",
+      "css": ".ds-unit { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-height: 128px; padding: 24px; border-radius: 16px; background: #58cc02; box-shadow: 0 4px 0 0 #46a302; color: #fff; overflow: hidden; } .ds-unit h2 { margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 800; line-height: 28px; letter-spacing: -0.01em; } .ds-unit p { margin: 0; font-family: 'Be Vietnam Pro', sans-serif; font-size: 15px; font-weight: 500; opacity: 0.92; }"
+    },
+    {
+      "name": "Answer Tile",
+      "kind": "custom",
+      "refersTo": "answer-tile",
+      "description": "A mono-set choice on a 2px edge; border, fill and edge repaint together across selected, correct and wrong.",
+      "html": "<button class=\"ds-tile\">print(\"hello\")</button>\n<button class=\"ds-tile ds-tile-selected\">print('hello')</button>\n<button class=\"ds-tile ds-tile-correct\">print(name)</button>\n<button class=\"ds-tile ds-tile-wrong\">Print(name)</button>",
+      "css": ".ds-tile { display: flex; align-items: center; width: 100%; min-height: 56px; margin-bottom: 12px; padding: 12px 16px; border: 2px solid #e3e2e2; border-radius: 16px; background: #fff; box-shadow: 0 2px 0 0 #e3e2e2; color: #1a1c1c; cursor: pointer; font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 15px; font-weight: 500; text-align: left; transition: transform 100ms ease, box-shadow 100ms ease, border-color 140ms ease, background 140ms ease; } .ds-tile:hover { background: #f4f3f3; } .ds-tile:focus-visible { outline: 3px solid #006590; outline-offset: 2px; } .ds-tile:active { transform: translateY(2px); box-shadow: 0 0 0 0 #e3e2e2; } .ds-tile-selected { border-color: #4abdff; background: #eaf7ff; box-shadow: 0 2px 0 0 #4abdff; color: #004a6b; } .ds-tile-correct { border-color: #58cc02; background: #eefce4; box-shadow: 0 2px 0 0 #58cc02; color: #1e5000; } .ds-tile-wrong { border-color: #ba1a1a; background: #ffdad6; box-shadow: 0 2px 0 0 #ba1a1a; color: #93000a; }"
+    },
+    {
+      "name": "Word-Bank Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "A code fragment tapped into the drop zone; the used state flattens to a blank slot rather than disappearing.",
+      "html": "<span class=\"ds-chips\"><button class=\"ds-chip\">for</button><button class=\"ds-chip\">i</button><button class=\"ds-chip ds-chip-used\">in</button></span>",
+      "css": ".ds-chips { display: flex; flex-wrap: wrap; gap: 10px; } .ds-chip { min-height: 46px; padding: 10px 18px; border: 2px solid #e3e2e2; border-radius: 16px; background: #fff; box-shadow: 0 2px 0 0 #e3e2e2; color: #1a1c1c; cursor: pointer; font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 15px; transition: transform 100ms ease, box-shadow 100ms ease, background 140ms ease; } .ds-chip:hover { background: #f4f3f3; } .ds-chip:focus-visible { outline: 3px solid #006590; outline-offset: 2px; } .ds-chip:active { transform: translateY(2px); box-shadow: 0 0 0 0 #e3e2e2; } .ds-chip-used { border-color: #eeeeed; background: #eeeeed; box-shadow: none; color: transparent; cursor: default; }"
+    },
+    {
+      "name": "List Row",
+      "kind": "card",
+      "refersTo": "list-row",
+      "description": "The league standing, the topic list and the profile's navigation rows; a 4px bottom lip instead of a shadow.",
+      "html": "<div class=\"ds-rows\"><div class=\"ds-row\"><span class=\"ds-rank ds-rank-1\">1</span><span class=\"ds-row-name\">Aisha</span><span class=\"ds-row-value\">420 XP</span></div><div class=\"ds-row ds-row-me\"><span class=\"ds-rank\">4</span><span class=\"ds-row-name\">You</span><span class=\"ds-row-value\">180 XP</span></div></div>",
+      "css": ".ds-rows { display: grid; gap: 10px; } .ds-row { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 10px 14px; border: 2px solid #e3e2e2; border-bottom-width: 4px; border-radius: 16px; background: #fff; font-family: 'Be Vietnam Pro', sans-serif; } .ds-row-me { border-color: #58cc02; background: #f2fce9; } .ds-rank { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border-radius: 50%; background: #eeeeed; color: #3f4a36; font-size: 14px; font-weight: 700; } .ds-rank-1 { background: #fec700; color: #241a00; } .ds-row-name { flex: 1; font-size: 15px; font-weight: 700; color: #1a1c1c; } .ds-row-value { flex: none; color: #3f4a36; font-size: 14px; font-weight: 700; }"
+    },
+    {
+      "name": "Floating Tab Pill",
+      "kind": "nav",
+      "refersTo": "nav-tab-active",
+      "description": "The bottom navigation: a frosted glass pill inset 14px from three edges of the frame, with the path visible underneath. Tabs are 24px lozenges; the active one is a translucent green wash.",
+      "html": "<nav class=\"ds-nav\"><button class=\"ds-tab ds-tab-active\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z\"/></svg>Home</button><button class=\"ds-tab\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3.5 18.5l6-6 4 4L22 6.9l-1.4-1.4-7.1 8.1-4-4L2 17z\"/></svg>Progress</button><button class=\"ds-tab\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 9h4v11H4zm6-5h4v16h-4zm6 8h4v8h-4z\"/></svg>League</button><button class=\"ds-tab\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-4 0-8 2-8 4.5V21h16v-2.5C20 16 16 14 12 14z\"/></svg>Profile</button></nav>",
+      "css": ".ds-nav { position: relative; display: flex; align-items: center; justify-content: space-around; gap: 4px; padding: 7px; border: 1px solid rgba(255, 255, 255, 0.75); border-radius: 30px; background: rgba(252, 253, 251, 0.9); box-shadow: 0 10px 30px rgba(26, 58, 18, 0.16), 0 2px 8px rgba(31, 41, 55, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9); } @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) { .ds-nav { background: rgba(252, 253, 251, 0.62); -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%); } } .ds-tab { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 50px; padding: 6px 2px; border: 0; border-radius: 24px; background: transparent; color: #3f4a36; cursor: pointer; font-family: 'Be Vietnam Pro', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.01em; transition: background 140ms ease, transform 100ms ease; } .ds-tab svg { width: 24px; height: 24px; fill: currentColor; } .ds-tab:hover:not(.ds-tab-active) { background: rgba(31, 41, 55, 0.06); } .ds-tab:focus-visible { outline: 3px solid #006590; outline-offset: 2px; } .ds-tab:active { transform: translateY(2px); } .ds-tab-active { background: rgba(88, 204, 2, 0.18); color: #1e5000; }"
+    },
+    {
+      "name": "Top Stat Bar",
+      "kind": "nav",
+      "refersTo": "stat-pill",
+      "description": "The fixed meter row: streak amber, gems blue, hearts red — three fixed colour assignments that never swap.",
+      "html": "<header class=\"ds-topbar\"><button class=\"ds-stat ds-stat-streak\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M13 2c.5 4-2.5 5-3.5 7.5C8.4 12.3 10 14 10 14s-2-.5-2.8-2C6 14 5 15.6 5 17.5 5 20.5 8.1 23 12 23s7-2.5 7-5.5C19 12 13 9.5 13 2z\"/></svg>7</button><button class=\"ds-stat ds-stat-gems\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M6 2h12l4 7-10 13L2 9z\"/></svg>180</button><button class=\"ds-stat ds-stat-hearts\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 21s-8-4.9-8-10.2A4.8 4.8 0 0112 8a4.8 4.8 0 018 2.8C20 16.1 12 21 12 21z\"/></svg>5</button></header>",
+      "css": ".ds-topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 68px; padding: 0 16px; border-bottom: 4px solid #e3e2e2; background: #faf9f9; } .ds-stat { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; font-family: 'Be Vietnam Pro', sans-serif; font-size: 15px; font-weight: 700; transition: background 140ms ease, transform 100ms ease; } .ds-stat svg { width: 24px; height: 24px; fill: currentColor; } .ds-stat:hover { background: #f4f3f3; } .ds-stat:focus-visible { outline: 3px solid #006590; outline-offset: 2px; } .ds-stat:active { transform: translateY(2px); } .ds-stat-streak { color: #b07d00; } .ds-stat-gems { color: #006590; } .ds-stat-hearts { color: #ba1a1a; }"
+    },
+    {
+      "name": "Feedback Sheet",
+      "kind": "custom",
+      "refersTo": "button-primary",
+      "description": "Rises from the bottom after a check; correct is green-washed with a green top border, wrong is blush with red.",
+      "html": "<div class=\"ds-feedback ds-feedback-good\"><div class=\"ds-feedback-head\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 2a10 10 0 100 20 10 10 0 000-20zm-1 15l-5-5 1.4-1.4L11 13.2l5.6-5.6L18 9z\"/></svg>Nice work</div><p>The print() function writes a value to the Python console.</p><button class=\"ds-btn\">Continue</button></div>",
+      "css": ".ds-feedback { display: grid; gap: 12px; padding: 20px; border-top: 2px solid transparent; animation: ds-rise 260ms cubic-bezier(0.22, 1, 0.36, 1) both; font-family: 'Be Vietnam Pro', sans-serif; } @keyframes ds-rise { from { transform: translateY(100%); } to { transform: translateY(0); } } .ds-feedback-good { border-top-color: #58cc02; background: #eefce4; color: #1e5000; } .ds-feedback-bad { border-top-color: #ba1a1a; background: #ffdad6; color: #93000a; } .ds-feedback-head { display: flex; align-items: center; gap: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 20px; font-weight: 800; } .ds-feedback-head svg { width: 26px; height: 26px; fill: currentColor; } .ds-feedback p { margin: 0; font-size: 15px; line-height: 21px; }"
+    },
+    {
+      "name": "Honesty Banner",
+      "kind": "custom",
+      "refersTo": "note-banner",
+      "description": "The only dashed surface in the system; marks any screen whose data is placeholder or whose controls do not act.",
+      "html": "<p class=\"ds-note\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M11 7h2v2h-2zm0 4h2v6h-2zm1-9a10 10 0 100 20 10 10 0 000-20zm0 18a8 8 0 110-16 8 8 0 010 16z\"/></svg>Standings are sample names, not real learners.</p>",
+      "css": ".ds-note { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border: 2px dashed #becbb1; border-radius: 16px; color: #3f4a36; font-family: 'Be Vietnam Pro', sans-serif; font-size: 13px; line-height: 18px; } .ds-note svg { width: 18px; height: 18px; flex: none; fill: currentColor; }"
+    },
+    {
+      "name": "Path Ribbon",
+      "kind": "custom",
+      "refersTo": "path-node",
+      "description": "The track itself: smooth vertical cubic S-curves stroked 12px in the structural grey, generated from the same swing table that places the stones (128px per step, four-beat swing of 0 / +58 / 0 / −58).",
+      "html": "<svg class=\"ds-track\" width=\"320\" height=\"432\" aria-hidden=\"true\"><path d=\"M 160 48 C 160 112 218 112 218 176 C 218 240 160 240 160 304 C 160 368 102 368 102 432\" fill=\"none\" stroke=\"#e3e2e2\" stroke-width=\"12\" stroke-linecap=\"round\"/></svg>",
+      "css": ".ds-track { display: block; margin: 0 auto; pointer-events: none; }"
+    },
+    {
+      "name": "Encouragement Bubble",
+      "kind": "custom",
+      "refersTo": "cheer-bubble",
+      "description": "A 168px card pinned to the side of the live stone, always on the outside of the curve, with a two-wedge tail and a 2.6s idle bob. Non-interactive.",
+      "html": "<span class=\"ds-cheer ds-cheer-right\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"11\" fill=\"#58cc02\"/></svg>You&rsquo;re doing great! Keep it up!</span>",
+      "css": ".ds-cheer { position: relative; display: flex; align-items: center; gap: 8px; width: 168px; padding: 10px 12px; border: 2px solid #e3e2e2; border-radius: 16px; background: #ffffff; box-shadow: 0 6px 16px rgba(31, 41, 55, 0.1); color: #1a1c1c; font-family: 'Be Vietnam Pro', sans-serif; font-size: 13px; font-weight: 700; line-height: 17px; text-align: left; pointer-events: none; animation: ds-bob 2.6s ease-in-out infinite; } .ds-cheer svg { width: 28px; height: 28px; flex: none; } .ds-cheer::before, .ds-cheer::after { content: ''; position: absolute; top: 24px; border-top: 9px solid transparent; border-bottom: 9px solid transparent; } .ds-cheer-right::before { right: 100%; border-right: 12px solid #e3e2e2; } .ds-cheer-right::after { right: calc(100% - 3px); border-right: 10px solid #ffffff; } @keyframes ds-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } } @media (prefers-reduced-motion: reduce) { .ds-cheer { animation: none; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Garden Path",
+    "overview": "PyLearn's course surfaces are built as a route through a garden rather than a list of lessons. The winding track of stepping stones is the product's spine: a ribbon of smooth S-curves swings the stones off the centre line so the eye reads a walk rather than a table of contents, the stone you are standing on wears a progress ring and is cheered on from the outside of the curve, and everything behind it has already turned gold. The palette is a growing thing — vivid growth green as the only \"go\" colour, energy yellow for what has been earned, wisdom blue for what can be spent — laid on a warm near-white that never competes.\n\nEverything you can touch is a physical object. Depth in this system is isometric and hard-edged: an interactive element sits on a solid, unblurred bottom edge in a darker tone of its own fill, and pressing it collapses that edge to nothing while the object drops by exactly the edge's height. Content does not float, does not glow and casts no soft ambient shadow. This is the pinned world's signature and the reason the surfaces feel pressable rather than clickable. Exactly one class of object is exempt: the things that ride above the path rather than sitting on it — the floating glass tab pill and the encouragement bubble — and they earn their soft shadow by being separated from the surface, not by being decorative.\n\nDensity is generous and thumb-first. The whole product renders inside a 420px phone frame standing in for a native app, so touch targets never fall below 40px. The stat bar is docked to the top of every course screen; the four tabs travel below it as a floating pill inset from the frame's edges, so the path is visible running underneath them. The type is loud where it counts (Plus Jakarta Sans at weight 800 for anything that names a place) and quiet everywhere else (Be Vietnam Pro at 500 for prose, 700 for labels). Python is always set in mono, including inside answer tiles, so code never reads as UI copy.",
+    "keyCharacteristics": [
+      "Solid, unblurred bottom edges (2/3/4/6px) on every pressable object; press collapses the edge",
+      "Maximum roundness: 16px on surfaces, 32px on large panels, full circles on stones and avatars",
+      "2px defining borders on content, 4px on fixed chrome edges",
+      "One green with one job: growth green means \"go here next\"",
+      "A near-white ground (#faf9f9) that lets three saturated hues carry all the meaning",
+      "Material Symbols Rounded for every icon; no emoji, no glyph substitutes",
+      "A winding stepping-stone path in place of any lesson list — curve and stones generated from one shared table",
+      "One floating element per screen: the frosted-glass tab pill, inset 14px from the frame",
+      "A visible focus ring (3px wisdom blue) and a reduced-motion opt-out on every course surface"
+    ],
+    "rules": [
+      {
+        "name": "The Container Speaks Rule",
+        "body": "The mid-tone container colours (#58cc02, #fec700, #4abdff) are the only fills. Their darker siblings (primary, tertiary, the -edge tokens) exist as ink and as depth and must never become a background.",
+        "section": "colors"
+      },
+      {
+        "name": "The Three Meters Rule",
+        "body": "Streak is amber (#b07d00), gems are wisdom blue, hearts are alert red. These three assignments are fixed across the top bar, the lesson chrome and the result screen; a meter never borrows another meter's colour.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Green Rule",
+        "body": "Growth green marks exactly one destination per screen. On the path, only the current stone is green — completed stones are gold, locked stones are grey. If two greens compete for \"next\", one of them is wrong.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Weights Rule",
+        "body": "Jakarta appears at 800 only; Be Vietnam Pro at 700 for labels and 500 for prose. There is no 600, no 400, and no italic anywhere in the system.",
+        "section": "typography"
+      },
+      {
+        "name": "The Code Is Mono Rule",
+        "body": "Any string of Python is set in the mono stack, including when it is the label of a pressable answer tile or word-bank chip. Never set code in the body face to make a tile look tidier.",
+        "section": "typography"
+      },
+      {
+        "name": "The Uppercase Is For Commitment Rule",
+        "body": "Only two things are uppercased: primary action buttons (0.02em) and the \"Premium\" badge (0.06em). Headings, tabs and nav labels stay sentence case.",
+        "section": "typography"
+      },
+      {
+        "name": "The Chrome Never Scrolls Rule",
+        "body": "The stat bar and the tab pill are fixed to the frame; content is padded out from under them (84px top, 116px bottom) and never comes to rest beneath them. The stat bar is docked and separated by a 4px divider; the tab pill is detached and separated by 14px of visible ground on three sides. Neither is ever made sticky inside the scroll region.",
+        "section": "layout"
+      },
+      {
+        "name": "The Solid Edge Rule",
+        "body": "Depth on anything that scrolls is a zero-blur offset in a darker tone of the object's own fill. No blurred shadows, no glows, no rgba black scrims on content.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Sink Equals Edge Rule",
+        "body": "The press translation always equals the edge height exactly (6/6, 4/4, 3/3, 2/2). A press that moves further than its edge, or that leaves an edge behind, is broken.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Two-Pixel Border Rule",
+        "body": "Content borders are 2px. 4px is reserved for the stat-bar divider, card bottom lips and the stones' cut-out ring; 1px exists once, on the glass pill. Nothing else may introduce a new border weight.",
+        "section": "shapes"
+      },
+      {
+        "name": "The One Coordinate Space Rule",
+        "body": "The path's curve and its stones are generated from one shared table (PATH_W 320, PATH_TOP 48, PATH_STEP 128, PATH_SWING, pathX, pathY, buildTrack in src/App.tsx). Never position a stone with a number the curve does not also use; two tables drift the moment the container resizes.",
+        "section": "layout"
+      },
+      {
+        "name": "The One Floating Plane Rule",
+        "body": "Soft shadows and backdrop blur belong exclusively to elements that sit above the scroll and let content pass underneath — in this build, the tab pill and the encouragement bubble. Adding a third is a decision about the product's spatial model, not a styling choice.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Threaded Ribbon Rule",
+        "body": "The track passes through the stones, never behind a gap: it is stroked from the same centres the stones are positioned from, and the stones' 4px surface-coloured border is what punches them out of it. A track drawn as a straight bar behind offset stones is the thing this geometry replaced.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do give every pressable object a solid bottom edge in a darker tone of its own fill, and make the press translation equal the edge exactly.",
+      "Do reach for surface-highest (#e3e2e2) as the default 2px border, the empty-track fill and the locked state — it is the system's structural grey.",
+      "Do repaint border, fill and edge together when a tile changes state; a state that only changes the border reads as a rendering bug.",
+      "Do set Python in the mono stack everywhere, including inside interactive tiles and chips.",
+      "Do draw every icon from Material Symbols Rounded through the shared Icon component, switching the FILL axis (0 → 1) to mark the active item.",
+      "Do mark presentation-only surfaces with the dashed honesty banner rather than dressing static data as live.",
+      "Do keep 84px of top and 116px of bottom padding on any screen that carries the fixed chrome.",
+      "Do generate any new stop on the path from the shared pathX/pathY table so the ribbon and the stones stay threaded.",
+      "Do put a visible 3px wisdom-blue :focus-visible outline on every interactive element you add to a vg- surface.",
+      "Do give any new decorative loop an animation: none entry in the reduced-motion block, and collapse its transitions to 1ms there.",
+      "Do guard backdrop-filter behind @supports and ship a near-opaque fallback fill in the base rule."
+    ],
+    "donts": [
+      "Don't use blurred shadows, glows or ambient elevation on anything that scrolls. Soft shadows belong only to the floating plane (the tab pill, the encouragement bubble); the standing exceptions elsewhere are the floating snake in its preview stage and the phone frame itself.",
+      "Don't dock, square off or full-bleed the bottom navigation. It floats inset 14px on three sides with the path visible under it; a bar with a top border is the thing this replaced.",
+      "Don't fill the active tab with solid green or give it an underline. The active state is an 18% green wash inside a 24px lozenge.",
+      "Don't draw the path as a straight bar behind offset stones, and don't hand-place a stone at a coordinate the curve does not share.",
+      "Don't use primary (#2b6c00), tertiary (#006590) or any -edge token as a background; they are ink and depth.",
+      "Don't put two green \"next\" affordances on one screen — completed is gold, locked is grey, and only the current step is green.",
+      "Don't substitute emoji or a text glyph for an icon on a vg- surface.",
+      "Don't introduce a third font weight into either family, or an italic.",
+      "Don't use a 4px border anywhere except the stat-bar divider, a card's bottom lip or a stone's cut-out ring; and don't introduce a 1px border anywhere but the glass pill.",
+      "Don't suppress the :focus-visible outline, and don't ship a new animation without a reduced-motion answer for it.",
+      "Don't render a lesson list. The path of stones is the navigation model; a vertical list of lesson rows is the thing this system exists to refuse."
+    ]
+  }
+}

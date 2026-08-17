@@ -33,9 +33,9 @@ export function ResetPasswordScreen() {
   return (
     <section className="page narrow-page">
       <div className="page-header">
-        <p className="eyebrow">Безопасность</p>
-        <h1>Восстановление пароля</h1>
-        <p>Введите email, и Supabase отправит ссылку для восстановления доступа.</p>
+        <p className="eyebrow">Security</p>
+        <h1>Reset your password</h1>
+        <p>Enter your email and Supabase will send you a recovery link.</p>
       </div>
 
       <div className="form-card">
@@ -65,18 +65,18 @@ export function ResetPasswordScreen() {
 
           {resetMutation.isSuccess ? (
             <div className="inline-alert inline-alert-success" role="status">
-              Если email зарегистрирован, письмо для восстановления уже отправлено.
+              If that email is registered, the recovery message is already on its way.
             </div>
           ) : null}
 
           <button className="primary-button full-width-button" disabled={resetMutation.isPending}>
-            {resetMutation.isPending ? 'Отправка...' : 'Отправить ссылку'}
+            {resetMutation.isPending ? 'Sending...' : 'Send the link'}
           </button>
         </form>
       </div>
 
       <Link className="text-link" to={routes.signIn}>
-        Вернуться ко входу
+        Back to log in
       </Link>
     </section>
   );

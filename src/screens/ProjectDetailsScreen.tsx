@@ -6,13 +6,13 @@ export function ProjectDetailsScreen() {
   return (
     <section className="page">
       <div className="page-header">
-        <p className="eyebrow">Проект</p>
-        <h1>Детали проекта</h1>
-        <p>Галерея, ссылки, лайки и комментарии появятся на шаге 5.</p>
+        <p className="eyebrow">Project</p>
+        <h1>Project details</h1>
+        <p>Gallery, links, likes and comments arrive in step 5.</p>
       </div>
 
       <div className="state-panel">
-        <p>ID проекта: {projectId}</p>
+        <p>Project ID: {projectId}</p>
       </div>
     </section>
   );

@@ -25,7 +25,7 @@ export function AppNavigator() {
     return (
       <div className="app-shell">
         <main className="app-main">
-          <LoadingState label="Проверяем сессию..." />
+          <LoadingState label="Checking your session..." />
         </main>
       </div>
     );
@@ -35,11 +35,11 @@ export function AppNavigator() {
     <div className="app-shell">
       <header className="app-header">
         <NavLink className="brand-link" to={routes.home}>
-          PhQuarks
+          PyLearn
         </NavLink>
-        <nav className="main-nav" aria-label="Основная навигация">
-          <NavLink to={routes.home}>Лента</NavLink>
-          <NavLink to={routes.profile}>Мой профиль</NavLink>
+        <nav className="main-nav" aria-label="Main navigation">
+          <NavLink to={routes.home}>Feed</NavLink>
+          <NavLink to={routes.profile}>My profile</NavLink>
           {session ? (
             <button
               className="nav-button"
@@ -47,10 +47,10 @@ export function AppNavigator() {
               type="button"
               onClick={() => signOutMutation.mutate()}
             >
-              {signOutMutation.isPending ? 'Выход...' : 'Выйти'}
+              {signOutMutation.isPending ? 'Logging out...' : 'Log out'}
             </button>
           ) : (
-            <NavLink to={routes.signIn}>Вход</NavLink>
+            <NavLink to={routes.signIn}>Log in</NavLink>
           )}
         </nav>
       </header>

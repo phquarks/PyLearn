@@ -4,12 +4,12 @@ export function OnboardingScreen() {
   return (
     <section className="page narrow-page">
       <div className="page-header">
-        <p className="eyebrow">Профиль</p>
-        <h1>Создание профиля</h1>
-        <p>Username, avatar и bio появятся на шаге 3.</p>
+        <p className="eyebrow">Profile</p>
+        <h1>Create your profile</h1>
+        <p>Username, avatar and bio arrive in step 3.</p>
       </div>
 
-      <EmptyState title="Онбординг еще не подключен" />
+      <EmptyState title="Onboarding is not wired up yet" />
     </section>
   );
 }

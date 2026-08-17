@@ -5,17 +5,17 @@ type EditProjectScreenProps = {
 };
 
 export function EditProjectScreen({ mode }: EditProjectScreenProps) {
-  const title = mode === 'create' ? 'Новый проект' : 'Редактирование проекта';
+  const title = mode === 'create' ? 'New project' : 'Edit project';
 
   return (
     <section className="page narrow-page">
       <div className="page-header">
-        <p className="eyebrow">Проекты</p>
+        <p className="eyebrow">Projects</p>
         <h1>{title}</h1>
-        <p>Форму с zod-валидацией добавим на шаге 7.</p>
+        <p>The zod-validated form arrives in step 7.</p>
       </div>
 
-      <EmptyState title="Форма проекта еще не подключена" />
+      <EmptyState title="The project form is not wired up yet" />
     </section>
   );
 }

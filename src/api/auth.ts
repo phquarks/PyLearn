@@ -11,7 +11,7 @@ type AuthStateListener = (event: AuthChangeEvent, session: Session | null) => vo
 
 function assertSupabaseConfigured() {
   if (!isSupabaseConfigured) {
-    throw new Error('Добавьте VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в .env.');
+    throw new Error('Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.');
   }
 }
 

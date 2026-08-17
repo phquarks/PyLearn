@@ -42,27 +42,27 @@ export function AuthScreen() {
     onSuccess: (session) => {
       setSuccessMessage(
         formMode === 'signIn'
-          ? 'Вы вошли в аккаунт.'
+          ? 'You are now logged in.'
           : session
-            ? 'Аккаунт создан. Можно переходить к профилю.'
-            : 'Проверьте почту и подтвердите регистрацию.',
+            ? 'Account created. You can head to your profile.'
+            : 'Check your inbox and confirm the sign-up.',
       );
     },
   });
 
-  const submitLabel = formMode === 'signIn' ? 'Войти' : 'Создать аккаунт';
+  const submitLabel = formMode === 'signIn' ? 'Log in' : 'Create account';
   const errorMessage = authMutation.isError ? getErrorMessage(authMutation.error) : null;
 
   return (
     <section className="page narrow-page">
       <div className="page-header">
-        <p className="eyebrow">Аккаунт</p>
-        <h1>Вход и регистрация</h1>
-        <p>Используйте email и пароль для входа или создания нового профиля.</p>
+        <p className="eyebrow">Account</p>
+        <h1>Log in or sign up</h1>
+        <p>Use your email and password to log in or create a new profile.</p>
       </div>
 
       <div className="form-card">
-        <div className="segmented-control" aria-label="Режим формы">
+        <div className="segmented-control" aria-label="Form mode">
           <button
             className={formMode === 'signIn' ? 'active' : ''}
             type="button"
@@ -72,7 +72,7 @@ export function AuthScreen() {
               setSuccessMessage(null);
             }}
           >
-            Вход
+            Log in
           </button>
           <button
             className={formMode === 'signUp' ? 'active' : ''}
@@ -83,7 +83,7 @@ export function AuthScreen() {
               setSuccessMessage(null);
             }}
           >
-            Регистрация
+            Sign up
           </button>
         </div>
 
@@ -106,10 +106,10 @@ export function AuthScreen() {
           </label>
 
           <label className="field">
-            <span>Пароль</span>
+            <span>Password</span>
             <input
               autoComplete={formMode === 'signIn' ? 'current-password' : 'new-password'}
-              placeholder="Минимум 6 символов"
+              placeholder="At least 6 characters"
               type="password"
               {...register('password')}
             />
@@ -129,13 +129,13 @@ export function AuthScreen() {
           ) : null}
 
           <button className="primary-button full-width-button" disabled={authMutation.isPending}>
-            {authMutation.isPending ? 'Отправка...' : submitLabel}
+            {authMutation.isPending ? 'Submitting...' : submitLabel}
           </button>
         </form>
       </div>
 
       <Link className="text-link" to={routes.resetPassword}>
-        Восстановить пароль
+        Reset your password
       </Link>
     </section>
   );

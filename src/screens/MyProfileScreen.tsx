@@ -8,16 +8,16 @@ export function MyProfileScreen() {
     <section className="page">
       <div className="page-header page-header-row">
         <div>
-          <p className="eyebrow">Профиль</p>
-          <h1>Мой профиль</h1>
-          <p>Список своих проектов и редактирование профиля появятся на шаге 6.</p>
+          <p className="eyebrow">Profile</p>
+          <h1>My profile</h1>
+          <p>Your own project list and profile editing arrive in step 6.</p>
         </div>
         <Link className="primary-button" to={routes.newProject}>
-          Добавить проект
+          Add a project
         </Link>
       </div>
 
-      <EmptyState title="Ваши проекты пока не загружены" />
+      <EmptyState title="Your projects have not loaded yet" />
     </section>
   );
 }

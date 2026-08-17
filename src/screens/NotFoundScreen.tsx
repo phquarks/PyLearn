@@ -7,12 +7,12 @@ export function NotFoundScreen() {
     <section className="page narrow-page">
       <div className="page-header">
         <p className="eyebrow">404</p>
-        <h1>Страница не найдена</h1>
-        <p>Похоже, такого маршрута в приложении нет.</p>
+        <h1>Page not found</h1>
+        <p>There does not seem to be such a route in the app.</p>
       </div>
 
       <Link className="primary-button" to={routes.home}>
-        Вернуться в ленту
+        Back to the feed
       </Link>
     </section>
   );
