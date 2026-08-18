@@ -17,6 +17,7 @@ export type LearningProgress = {
   snake_hat: string;
   snake_trail: string;
   avatar_url: string | null;
+  profile_hidden: boolean;
   started_at?: string;
   updated_at?: string;
 };
@@ -34,7 +35,8 @@ const CORE_COLUMNS =
   'user_id, display_name, goal, experience, language, xp, streak, hearts, completed_lessons, started_at, updated_at';
 
 /** added by the gems migration; kept separate so their absence can be detected */
-const SHOP_COLUMNS = 'gems, owned_items, snake_skin, snake_hat, snake_trail, avatar_url';
+const SHOP_COLUMNS =
+  'gems, owned_items, snake_skin, snake_hat, snake_trail, avatar_url, profile_hidden';
 
 /**
  * Postgres and PostgREST both complain about an unknown column, with different
@@ -58,6 +60,7 @@ const SHOP_DEFAULTS = {
   snake_hat: 'none',
   snake_trail: 'plain',
   avatar_url: null as string | null,
+  profile_hidden: false,
 };
 
 export async function getLearningProgress(userId: string): Promise<LearningProgress | null> {
@@ -83,7 +86,11 @@ export async function getLearningProgress(userId: string): Promise<LearningProgr
 }
 
 export async function upsertLearningProgress(progress: LearningProgress): Promise<void> {
-  const row = { ...progress, updated_at: new Date().toISOString() };
+  /* xp, gems, streak, completed_lessons and owned_items are decided by the
+     server now. A trigger discards them on the way in, so sending them would be
+     noise that reads like a claim the client no longer gets to make. */
+  const { xp, gems, streak, hearts, completed_lessons, owned_items, ...owned } = progress;
+  const row = { ...owned, updated_at: new Date().toISOString() };
   const write = (payload: object) =>
     supabase.from('learning_profiles').upsert(payload, { onConflict: 'user_id' });
 
@@ -95,7 +102,7 @@ export async function upsertLearningProgress(progress: LearningProgress): Promis
     /* Rather than losing the whole save over the shop fields, drop them and
        write the rest. Gems bought on this device stay on this device until the
        migration lands, which beats XP and lessons silently failing to save. */
-    const { gems, owned_items, snake_skin, snake_hat, snake_trail, avatar_url, ...core } = row;
+    const { snake_skin, snake_hat, snake_trail, avatar_url, profile_hidden, ...core } = row;
     const retry = await write(core);
 
     if (retry.error) {
@@ -147,35 +154,92 @@ export function dayBefore(iso: string, back: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** Adds a finished lesson to today's tally, creating the row on first use. */
-export async function recordActivity(userId: string, xp: number, lessons = 1): Promise<void> {
-  const day = today();
-  const { data, error: readError } = await supabase
-    .from('daily_activity')
-    .select('xp, lessons')
-    .eq('user_id', userId)
-    .eq('day', day)
-    .maybeSingle();
+export type AwardResult = {
+  xp: number;
+  gems: number;
+  streak: number;
+  completed_lessons: number[];
+  /** what this run alone was worth, so the result screen shows the real figure */
+  awarded_xp: number;
+  awarded_gems: number;
+};
 
-  if (readError) {
-    throw readError;
-  }
+/**
+ * Reports a finished lesson and gets the new totals back.
+ *
+ * The reward is worked out on the server; what the app computed locally is only
+ * ever a preview. The day is sent from here because the boundary follows the
+ * learner's clock, not the server's.
+ */
+export async function completeLesson(
+  lessonId: number,
+  correct: number,
+  total: number,
+): Promise<AwardResult> {
+  const { data, error } = await supabase.rpc('complete_lesson', {
+    lesson_id: lessonId,
+    correct,
+    total,
+    local_day: today(),
+  });
 
-  const { error } = await supabase.from('daily_activity').upsert(
-    {
-      user_id: userId,
-      day,
-      xp: (data?.xp ?? 0) + xp,
-      lessons: (data?.lessons ?? 0) + lessons,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'user_id,day' },
-  );
+  if (error) throw error;
 
-  if (error) {
-    throw error;
-  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error('The lesson was recorded but returned no totals.');
+
+  return row as AwardResult;
 }
+
+export type HeartState = { hearts: number; next_at: string | null };
+
+/** Current hearts, with anything owed by the timer already credited. */
+export async function heartState(): Promise<HeartState> {
+  const { data, error } = await supabase.rpc('heart_state');
+
+  if (error) throw error;
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error('Could not read your hearts.');
+
+  return row as HeartState;
+}
+
+export async function loseHeart(): Promise<HeartState> {
+  const { data, error } = await supabase.rpc('lose_heart');
+
+  if (error) throw error;
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error('Could not record that answer.');
+
+  return row as HeartState;
+}
+
+export type PurchaseResult = { gems: number; owned_items: string[] };
+
+export async function purchaseItem(itemId: string): Promise<PurchaseResult> {
+  const { data, error } = await supabase.rpc('purchase_item', { item_id: itemId });
+
+  if (error) throw error;
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error('The purchase returned nothing.');
+
+  return row as PurchaseResult;
+}
+
+export async function buyHearts(): Promise<{ gems: number; hearts: number }> {
+  const { data, error } = await supabase.rpc('buy_hearts');
+
+  if (error) throw error;
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error('The refill returned nothing.');
+
+  return row as { gems: number; hearts: number };
+}
+
 
 export async function getActivity(userId: string, days = 30): Promise<ActivityDay[]> {
   const { data, error } = await supabase
@@ -192,41 +256,11 @@ export async function getActivity(userId: string, days = 30): Promise<ActivityDa
   return (data ?? []) as ActivityDay[];
 }
 
-/**
- * Consecutive days of activity ending today, or ending yesterday when today is
- * still untouched — otherwise a streak would appear broken every morning until
- * the first lesson lands.
- */
-export function streakFrom(activity: ActivityDay[]): number {
-  const active = new Set(activity.filter((row) => row.lessons > 0 || row.xp > 0).map((row) => row.day));
-
-  if (active.size === 0) {
-    return 0;
-  }
-
-  const start = active.has(today()) ? 0 : active.has(dayBefore(today(), 1)) ? 1 : -1;
-
-  if (start < 0) {
-    return 0;
-  }
-
-  let streak = 0;
-
-  for (let back = start; ; back += 1) {
-    if (!active.has(dayBefore(today(), back))) {
-      break;
-    }
-
-    streak += 1;
-  }
-
-  return streak;
-}
 
 export async function getLeaderboard(limit = 20): Promise<LeaderboardRow[]> {
   const { data, error } = await supabase
     .from('leaderboard')
-    .select('user_id, name, xp, streak')
+    .select('user_id, name, xp, streak, avatar_url')
     .order('xp', { ascending: false })
     .limit(limit);
 

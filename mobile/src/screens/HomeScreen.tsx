@@ -1,9 +1,10 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { color, edge, path as P, radius, space, type } from '../theme';
-import { lessons, unitDone, units, type UnitTone } from '../data/lessons';
+import { costsHearts, lessons, unitDone, units, type UnitTone } from '../data/lessons';
 import type { Action, State } from '../state/store';
 import { Icon, sink } from '../components/ui';
 
@@ -39,6 +40,16 @@ const tones: Record<UnitTone, { fill: string; edge: string; on: string }> = {
 
 export function HomeScreen({ state, dispatch }: { state: State; dispatch: (action: Action) => void }) {
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
+  const scroller = useRef<ScrollView>(null);
+  /* Where each unit block sits in the scroll, and where its ribbon sits inside
+     that block. Measured rather than calculated: the unit card's height depends
+     on how its summary wraps. Kept apart because a child is laid out before its
+     parent, so neither can be written in terms of the other at measure time. */
+  const unitTops = useRef<Record<number, number>>({});
+  const pathTops = useRef<Record<number, number>>({});
+  const [measured, setMeasured] = useState(0);
+  const jumped = useRef(false);
 
   /* Unlocking runs down the flat course order, not the unit: finishing the last
      lesson of one unit is what opens the first lesson of the next. */
@@ -52,9 +63,34 @@ export function HomeScreen({ state, dispatch }: { state: State; dispatch: (actio
 
   const activeId = lessons.find((lesson) => !state.completedLessons.includes(lesson.id))?.id ?? null;
 
+  /* Open on the stone the learner is actually standing on. With twelve units the
+     path is thousands of points long, and starting at the top means scrolling
+     past everything already finished to reach the one thing left to do. */
+  useEffect(() => {
+    if (jumped.current || activeId === null) return;
+
+    const unit = units.find((entry) => entry.lessons.some((lesson) => lesson.id === activeId));
+    const index = unit?.lessons.findIndex((lesson) => lesson.id === activeId) ?? -1;
+    const blockTop = unit ? unitTops.current[unit.id] : undefined;
+    const pathTop = unit ? pathTops.current[unit.id] : undefined;
+
+    if (!unit || index < 0 || blockTop === undefined || pathTop === undefined) return;
+
+    const top = blockTop + pathTop;
+
+    jumped.current = true;
+    // a third of a screen above it, so the stone sits in view with its unit
+    // still visible overhead rather than jammed against the top bar
+    const y = Math.max(0, top + cy(index) - screenHeight / 3);
+
+    // no animation: travelling through eleven units would be a journey, not feedback
+    scroller.current?.scrollTo({ y, animated: false });
+  }, [activeId, measured, screenHeight]);
+
   return (
     <ScrollView
       contentContainerStyle={{ paddingTop: 68 + insets.top + 16, paddingBottom: 120 + insets.bottom }}
+      ref={scroller}
       style={styles.screen}
     >
       {units.map((unit) => {
@@ -66,7 +102,13 @@ export function HomeScreen({ state, dispatch }: { state: State; dispatch: (actio
         const trackHeight = cy(stops - 1) + 90;
 
         return (
-          <View key={unit.id}>
+          <View
+            key={unit.id}
+            onLayout={(event) => {
+              unitTops.current[unit.id] = event.nativeEvent.layout.y;
+              setMeasured((count) => count + 1);
+            }}
+          >
             <View style={[styles.unit, { backgroundColor: tone.fill, borderBottomColor: tone.edge }]}>
               <Text style={[styles.unitKicker, { color: tone.on }]}>
                 Unit {unit.id} · {done} of {unit.lessons.length} lessons
@@ -76,7 +118,13 @@ export function HomeScreen({ state, dispatch }: { state: State; dispatch: (actio
               <Image source={MARK} style={styles.unitMark} />
             </View>
 
-            <View style={[styles.path, { height: trackHeight }]}>
+            <View
+              onLayout={(event) => {
+                pathTops.current[unit.id] = event.nativeEvent.layout.y;
+                setMeasured((count) => count + 1);
+              }}
+              style={[styles.path, { height: trackHeight }]}
+            >
               <Svg height={trackHeight} style={styles.track} width={P.width}>
                 <Path
                   d={buildTrack(stops)}
@@ -128,7 +176,13 @@ export function HomeScreen({ state, dispatch }: { state: State; dispatch: (actio
                       accessibilityLabel={`${lesson.title}${complete ? ', completed' : open ? '' : ', locked'}`}
                       accessibilityRole="button"
                       disabled={!open}
-                      onPress={() => dispatch({ type: 'START_LESSON', lessonId: lesson.id })}
+                      onPress={() =>
+                        // no hearts and this one costs them: say so before the
+                        // first question rather than after a wrong answer
+                        state.hearts === 0 && costsHearts(lesson.id)
+                          ? dispatch({ type: 'GO_TO', screen: 'noHearts' })
+                          : dispatch({ type: 'START_LESSON', lessonId: lesson.id })
+                      }
                       style={({ pressed }) => [
                         styles.stone,
                         complete

@@ -52,6 +52,22 @@ export const units: Unit[] = [...foundation, ...collections, ...craft, ...applie
  */
 export const lessons = units.flatMap((unit) => unit.lessons);
 
+/**
+ * Units that cost nothing to get wrong.
+ *
+ * Hearts are meant to make carelessness cost something, but a beginner is wrong
+ * constantly and has no gems to buy their way out — so on the first two units
+ * the mechanic only ever meant "stop learning for half an hour". They start
+ * where the learner has some footing.
+ */
+export const FREE_UNITS = 2;
+
+export function costsHearts(lessonId: number): boolean {
+  const unit = unitOfLesson(lessonId);
+
+  return unit ? unit.id > FREE_UNITS : true;
+}
+
 /** the unit a lesson belongs to, or undefined for an id that no longer exists */
 export function unitOfLesson(lessonId: number): Unit | undefined {
   return units.find((unit) => unit.lessons.some((lesson) => lesson.id === lessonId));

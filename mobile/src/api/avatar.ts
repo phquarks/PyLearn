@@ -109,6 +109,25 @@ export async function pickAvatar(userId: string): Promise<PickedAvatar> {
   return { uri: destination.uri, url };
 }
 
+/**
+ * Sends a picture that only ever made it as far as this phone.
+ *
+ * Avatars were local before the League showed them, so an early adopter has a
+ * file on disk and nothing on the server. Rather than asking them to pick the
+ * same photo again, the existing copy is uploaded once.
+ */
+export async function uploadExistingAvatar(userId: string): Promise<string> {
+  const uri = await AsyncStorage.getItem(KEY);
+
+  if (!uri) return '';
+
+  const file = new File(uri);
+
+  if (!file.exists) return '';
+
+  return upload(file, userId);
+}
+
 export async function clearAvatar(): Promise<void> {
   const uri = await AsyncStorage.getItem(KEY);
 

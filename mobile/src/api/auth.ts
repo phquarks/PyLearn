@@ -67,6 +67,26 @@ export async function updateEmail(email: string): Promise<void> {
   }
 }
 
+/**
+ * Removes the account and everything hanging off it, then ends the session.
+ *
+ * There is no undo and nothing is kept: the profile, the day log, the streak
+ * and the picture all go. The sign-out afterwards is belt and braces — the
+ * token is already worthless once its user is gone, but leaving it in storage
+ * would have the app open as if somebody were still logged in.
+ */
+export async function deleteAccount(): Promise<void> {
+  assertConfigured();
+
+  const { error } = await supabase.rpc('delete_account');
+
+  if (error) {
+    throw error;
+  }
+
+  await supabase.auth.signOut().catch(() => undefined);
+}
+
 export async function signOut(): Promise<void> {
   assertConfigured();
 

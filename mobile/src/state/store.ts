@@ -1,7 +1,7 @@
 /** App state. Copied from the web build — the reducer is platform-agnostic. */
 
-import { cosmeticById, GEMS_PER_LESSON, HEART_REFILL_PRICE, owns } from '../data/cosmetics';
-import { lessons, onboardingSlides } from '../data/lessons';
+import { cosmeticById, owns } from '../data/cosmetics';
+import { costsHearts, lessons, onboardingSlides } from '../data/lessons';
 
 export type Screen =
   | 'onboarding'
@@ -17,6 +17,7 @@ export type Screen =
   | 'profile'
   | 'editProfile'
   | 'admin'
+  | 'noHearts'
   | 'customize'
   | 'shop';
 
@@ -40,6 +41,8 @@ export type State = {
   avatarUri: string;
   /** the same picture on the server, which is what other learners see */
   avatarUrl: string;
+  /** an admin removed this profile's name and picture from what others see */
+  profileHidden: boolean;
   onboardingIndex: number;
   authMode: 'login' | 'register';
   goal: string;
@@ -48,6 +51,11 @@ export type State = {
   xp: number;
   streak: number;
   hearts: number;
+  /** when the next heart lands, or '' while they are full */
+  heartsNextAt: string;
+  /* Bumped by a wrong answer that should cost a heart. The spending itself
+     happens on the server; this is only the nudge that asks for it. */
+  pendingHeartLoss: number;
   gems: number;
   /** ids of bought cosmetics; the free ones are never listed here */
   ownedItems: string[];
@@ -56,6 +64,9 @@ export type State = {
   snakeTrail: string;
   completedLessons: number[];
   lastResult: { xp: number; accuracy: number; title: string } | null;
+  /* A finished run waiting to be reported. The server decides what it was
+     worth, so nothing is added to the totals until it answers. */
+  pendingAward: { lessonId: number; correct: number; total: number; title: string; accuracy: number } | null;
   lesson: LessonSession | null;
   profileStartedAt: string;
   syncMessage: string;
@@ -89,6 +100,7 @@ export type Action =
         snakeHat: string;
         snakeTrail: string;
         avatarUrl: string;
+        profileHidden: boolean;
         completedLessons: number[];
         profileStartedAt?: string;
         displayName?: string;
@@ -97,11 +109,14 @@ export type Action =
   | { type: 'SET_SYNC_MESSAGE'; message: string }
   | { type: 'SET_DISPLAY_NAME'; name: string }
   | { type: 'SET_AVATAR'; uri: string; url?: string }
-  | { type: 'BUY_COSMETIC'; id: string }
   | { type: 'EQUIP_COSMETIC'; id: string }
-  | { type: 'BUY_HEARTS' }
+  | {
+      type: 'APPLY_AWARD';
+      award: { xp: number; gems: number; streak: number; completedLessons: number[]; awardedXp: number };
+    }
+  | { type: 'APPLY_PURCHASE'; gems: number; ownedItems: string[] }
+  | { type: 'APPLY_HEARTS'; hearts: number; nextAt: string; gems?: number }
   | { type: 'SET_GEMS'; gems: number }
-  | { type: 'SET_STREAK'; streak: number }
   | { type: 'SIGN_OUT' };
 
 export const initialState: State = {
@@ -109,6 +124,7 @@ export const initialState: State = {
   displayName: '',
   avatarUri: '',
   avatarUrl: '',
+  profileHidden: false,
   onboardingIndex: 0,
   authMode: 'register',
   goal: '',
@@ -118,6 +134,8 @@ export const initialState: State = {
   xp: 0,
   streak: 0,
   hearts: 5,
+  heartsNextAt: '',
+  pendingHeartLoss: 0,
   gems: 0,
   ownedItems: [],
   snakeSkin: 'green',
@@ -125,6 +143,7 @@ export const initialState: State = {
   snakeTrail: 'plain',
   completedLessons: [],
   lastResult: null,
+  pendingAward: null,
   lesson: null,
   profileStartedAt: new Date().toISOString().slice(0, 10),
   syncMessage: '',
@@ -201,9 +220,14 @@ export function reducer(state: State, action: Action): State {
             selected.every((slot, index) => question.options[slot] === question.answer[index])
           : selected === question.answer;
 
+      /* The heart is not taken here. Hearts refill on a timer the server keeps,
+         so the device counting them down would just be a guess — and one the
+         learner could reset by changing their clock. */
+      const spends = !correct && costsHearts(state.lesson.lessonId);
+
       return {
         ...state,
-        hearts: correct ? state.hearts : Math.max(0, state.hearts - 1),
+        pendingHeartLoss: state.pendingHeartLoss + (spends ? 1 : 0),
         lesson: {
           ...state.lesson,
           answered: true,
@@ -235,17 +259,22 @@ export function reducer(state: State, action: Action): State {
       }
 
       const accuracy = Math.round((state.lesson.correct / currentLesson.questions.length) * 100);
-      const earnedXp = 10 + state.lesson.correct * 5;
 
+      /* No xp or gems here. The client used to work out the reward itself and
+         write the new totals straight to the database, which meant anyone could
+         post themselves any number. The run is parked instead, and the server
+         says what it was worth. */
       return {
         ...state,
         screen: 'result',
-        xp: state.xp + earnedXp,
-        gems: state.gems + GEMS_PER_LESSON,
-        completedLessons: state.completedLessons.includes(currentLesson.id)
-          ? state.completedLessons
-          : [...state.completedLessons, currentLesson.id],
-        lastResult: { xp: earnedXp, accuracy, title: currentLesson.title },
+        lastResult: null,
+        pendingAward: {
+          lessonId: currentLesson.id,
+          correct: state.lesson.correct,
+          total: currentLesson.questions.length,
+          title: currentLesson.title,
+          accuracy,
+        },
         lesson: null,
       };
     }
@@ -272,22 +301,34 @@ export function reducer(state: State, action: Action): State {
         // clearing it, so the League keeps the last picture that did land
         avatarUrl: action.url === undefined ? state.avatarUrl : action.url,
       };
-    /* Buying and wearing are separate steps on purpose: the shop hands over the
-       item, the wardrobe decides what is worn. Both refuse silently rather than
-       throwing, since the screens already hide what cannot be afforded. */
-    case 'BUY_COSMETIC': {
-      const item = cosmeticById(action.id);
-
-      if (!item || owns(item, state.ownedItems) || state.gems < item.price) {
-        return state;
-      }
-
+    /* Every balance below arrives from the server, already decided. The reducer
+       only records what came back — it no longer works out prices or rewards,
+       because a client that can do the sums can also lie about them. */
+    case 'APPLY_AWARD':
       return {
         ...state,
-        gems: state.gems - item.price,
-        ownedItems: [...state.ownedItems, item.id],
+        xp: action.award.xp,
+        gems: action.award.gems,
+        streak: action.award.streak,
+        completedLessons: action.award.completedLessons,
+        lastResult: state.pendingAward
+          ? {
+              xp: action.award.awardedXp,
+              accuracy: state.pendingAward.accuracy,
+              title: state.pendingAward.title,
+            }
+          : state.lastResult,
+        pendingAward: null,
       };
-    }
+    case 'APPLY_PURCHASE':
+      return { ...state, gems: action.gems, ownedItems: action.ownedItems };
+    case 'APPLY_HEARTS':
+      return {
+        ...state,
+        hearts: action.hearts,
+        heartsNextAt: action.nextAt,
+        gems: action.gems ?? state.gems,
+      };
     case 'EQUIP_COSMETIC': {
       const item = cosmeticById(action.id);
 
@@ -304,14 +345,6 @@ export function reducer(state: State, action: Action): State {
        which is what an admin grant looks like from here. */
     case 'SET_GEMS':
       return { ...state, gems: action.gems };
-    case 'BUY_HEARTS':
-      if (state.gems < HEART_REFILL_PRICE || state.hearts >= 5) {
-        return state;
-      }
-
-      return { ...state, gems: state.gems - HEART_REFILL_PRICE, hearts: 5 };
-    case 'SET_STREAK':
-      return { ...state, streak: action.streak };
     // clearing the Supabase session is not enough on its own: the screen and the
     // previous learner's XP, streak and finished lessons live here, and would
     // otherwise stay on display until somebody else's progress overwrote them

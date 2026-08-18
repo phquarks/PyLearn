@@ -19,6 +19,8 @@ export const TABS: { screen: Screen; icon: string; label: string }[] = [
   { screen: 'home', icon: 'home', label: 'Home' },
   // leaderboard and bar-chart both read as bars at 24pt; keep the two apart
   { screen: 'progress', icon: 'trending-up', label: 'Progress' },
+  // the character sits in the middle of the five, where a thumb lands easiest
+  { screen: 'customize', icon: 'pets', label: 'Sneaky' },
   { screen: 'league', icon: 'leaderboard', label: 'League' },
   { screen: 'profile', icon: 'person', label: 'Profile' },
 ];

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { grantGems } from '../api/admin';
+import { hideProfile, openReports, showProfile, type OpenReport } from '../api/moderation';
 import { getErrorMessage } from '../api/progress';
 import { ChunkyButton, Icon, Note } from '../components/ui';
 import type { Action } from '../state/store';
@@ -35,6 +36,33 @@ export function AdminScreen({ dispatch }: { dispatch: (action: Action) => void }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [log, setLog] = useState<Entry[]>([]);
+  const [reports, setReports] = useState<OpenReport[]>([]);
+
+  async function loadReports() {
+    try {
+      setReports(await openReports());
+    } catch {
+      /* an unmigrated database has no such function; the rest of the screen works */
+    }
+  }
+
+  useEffect(() => {
+    void loadReports();
+  }, []);
+
+  async function hide(entry: OpenReport) {
+    setBusy(true);
+    setError('');
+
+    try {
+      await hideProfile(entry.email);
+      await loadReports();
+    } catch (hideError) {
+      setError(getErrorMessage(hideError));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const parsed = Number.parseInt(amount, 10);
   const valid = email.trim().includes('@') && Number.isFinite(parsed) && parsed !== 0;
@@ -152,6 +180,55 @@ export function AdminScreen({ dispatch }: { dispatch: (action: Action) => void }
         ) : null}
 
         <ChunkyButton
+          disabled={!email.trim().includes('@') || busy}
+          icon="visibility"
+          label="Show that profile again"
+          onPress={() => {
+            setBusy(true);
+            setError('');
+            void showProfile(email)
+              .then(() => loadReports())
+              .catch((showError) => setError(getErrorMessage(showError)))
+              .finally(() => setBusy(false));
+          }}
+          style={{ alignSelf: 'stretch', marginTop: 10 }}
+          tone="ghost"
+        />
+        <Text style={styles.hint}>Uses the email above. Undoes a hide once it has been sorted out.</Text>
+
+        <Text style={styles.sectionHead}>Reports</Text>
+        {reports.length === 0 ? (
+          <Text style={styles.hint}>Nothing reported. This list fills itself from the League.</Text>
+        ) : (
+          <View style={{ gap: 10, marginTop: 10 }}>
+            {reports.map((entry) => (
+              <View key={entry.target} style={styles.report}>
+                <View style={styles.reportHead}>
+                  <Text numberOfLines={1} style={styles.reportName}>
+                    {entry.name}
+                  </Text>
+                  <Text style={styles.reportCount}>
+                    {entry.reports} {entry.reports === 1 ? 'report' : 'reports'}
+                  </Text>
+                </View>
+                <Text numberOfLines={1} style={styles.hint}>
+                  {entry.email}
+                </Text>
+                {/* the learner keeps their progress; only what others see goes */}
+                <ChunkyButton
+                  disabled={busy}
+                  icon="visibility-off"
+                  label="Hide name and picture"
+                  onPress={() => void hide(entry)}
+                  style={{ alignSelf: 'stretch', marginTop: 10 }}
+                  tone="ghost"
+                />
+              </View>
+            ))}
+          </View>
+        )}
+
+        <ChunkyButton
           icon="arrow-back"
           label="Back to profile"
           onPress={() => dispatch({ type: 'GO_TO', screen: 'profile' })}
@@ -203,5 +280,16 @@ const styles = StyleSheet.create({
     backgroundColor: color.surfaceLowest,
   },
   rowName: { ...type.bodySm, flex: 1, color: color.onSurface },
+  report: {
+    padding: 14,
+    borderRadius: radius.base,
+    borderWidth: 2,
+    borderColor: color.surfaceHighest,
+    backgroundColor: color.surfaceLowest,
+  },
+  reportHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  reportName: { ...type.label, flex: 1, color: color.onSurface },
+  reportCount: { ...type.labelSm, color: color.error },
+  hint: { ...type.bodySm, color: color.onSurfaceVariant, marginTop: 6 },
   rowValue: { ...type.label, color: color.onSurfaceVariant },
 });

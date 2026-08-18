@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { color, edge, radius, space, type } from '../theme';
 import { lessons, unitDone, units } from '../data/lessons';
-import { dayBefore, today, type ActivityDay, type LeaderboardRow } from '../api/progress';
+import { reportProfile } from '../api/moderation';
+import { dayBefore, getErrorMessage, today, type ActivityDay, type LeaderboardRow } from '../api/progress';
 import type { Action, State } from '../state/store';
 import { ChunkyButton, Icon, Note, sink } from '../components/ui';
 
@@ -22,6 +24,8 @@ function useScrollPadding() {
 export function ResultScreen({ state, dispatch }: { state: State; dispatch: (action: Action) => void }) {
   const insets = useSafeAreaInsets();
   const result = state.lastResult;
+  // the reward is the server's answer, so there is a moment before it arrives
+  const waiting = state.pendingAward !== null;
 
   return (
     <View style={[styles.screen, styles.center, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
@@ -29,23 +33,30 @@ export function ResultScreen({ state, dispatch }: { state: State; dispatch: (act
         <Image source={MARK} style={{ width: 96, height: 115 }} />
       </View>
       <Text style={styles.display}>Lesson complete!</Text>
-      <Text style={styles.sub}>{result?.title ?? 'Python Basics'} just got closer.</Text>
+      <Text style={styles.sub}>
+        {(waiting ? state.pendingAward?.title : result?.title) ?? 'Python Basics'} just got closer.
+      </Text>
 
       <View style={styles.resultGrid}>
         <View style={styles.statCard}>
           <Icon name="diamond" size={26} tint={color.tertiary} />
-          <Text style={styles.statValue}>+{result?.xp ?? 0}</Text>
+          <Text style={styles.statValue}>{waiting ? '···' : `+${result?.xp ?? 0}`}</Text>
           <Text style={styles.statLabel}>XP earned</Text>
         </View>
         <View style={styles.statCard}>
           <Icon name="track-changes" size={26} tint={color.primary} />
-          <Text style={styles.statValue}>{result?.accuracy ?? 0}%</Text>
+          <Text style={styles.statValue}>
+            {(waiting ? state.pendingAward?.accuracy : result?.accuracy) ?? 0}%
+          </Text>
           <Text style={styles.statLabel}>accuracy</Text>
         </View>
       </View>
 
+      {state.syncMessage ? <Note tone="error">{state.syncMessage}</Note> : null}
+
       <ChunkyButton
-        label="Back to the path"
+        disabled={waiting}
+        label={waiting ? 'Saving...' : 'Back to the path'}
         onPress={() => dispatch({ type: 'GO_TO', screen: 'home' })}
         style={{ alignSelf: 'stretch', marginTop: space.md }}
       />
@@ -82,14 +93,19 @@ export function ProgressScreen({ state, activity }: { state: State; activity: Ac
         {week.map((entry) => (
           <View key={entry.day} style={styles.barColumn}>
             <Text style={styles.barValue}>{entry.xp || ''}</Text>
-            <View
-              style={[
-                styles.bar,
-                // an empty day still shows a sliver, so the week reads as seven days
-                { height: `${entry.xp ? Math.max(8, (entry.xp / peak) * 100) : 2}%` },
-                entry.xp ? null : styles.barEmpty,
-              ]}
-            />
+            {/* The bar is a share of this track, not of the whole column. Sized
+                against the column it counted the two labels and the gaps as
+                space it could fill, so a full day pushed out through the top. */}
+            <View style={styles.barTrack}>
+              <View
+                style={[
+                  styles.bar,
+                  // an empty day still shows a sliver, so the week reads as seven days
+                  { height: `${entry.xp ? Math.max(8, (entry.xp / peak) * 100) : 2}%` },
+                  entry.xp ? null : styles.barEmpty,
+                ]}
+              />
+            </View>
             <Text style={styles.barLabel}>{entry.label}</Text>
           </View>
         ))}
@@ -135,6 +151,22 @@ export function LeagueScreen({
   error: string;
 }) {
   const pad = useScrollPadding();
+  const [openRow, setOpenRow] = useState('');
+  const [note, setNote] = useState('');
+  const [actionError, setActionError] = useState('');
+
+  async function report(target: string, name: string) {
+    setActionError('');
+
+    try {
+      await reportProfile(target, 'Reported from the leaderboard');
+      setOpenRow('');
+      setNote(`Thanks — ${name} has been sent for review. They stay on the board until an admin looks.`);
+    } catch (reportError) {
+      setActionError(getErrorMessage(reportError));
+    }
+  }
+
   const rankTint = [
     { backgroundColor: color.secondaryContainer, color: color.onSecondaryFixed },
     { backgroundColor: '#dfe3e8', color: '#444b52' },
@@ -152,6 +184,8 @@ export function LeagueScreen({
       </View>
 
       {error ? <Note>{error}</Note> : null}
+      {note ? <Note>{note}</Note> : null}
+      {actionError ? <Note tone="error">{actionError}</Note> : null}
 
       {!error && board.length === 0 ? (
         <Note>Nobody has earned XP yet. Finish a lesson and you will be first on the board.</Note>
@@ -166,24 +200,46 @@ export function LeagueScreen({
           const isMe = row.user_id === userId;
 
           return (
-            <View key={row.user_id} style={[styles.row, isMe ? styles.rowMe : null]}>
-              <View style={[styles.rank, rankTint[index] ?? null]}>
-                <Text style={[styles.rankText, { color: rankTint[index]?.color ?? color.onSurfaceVariant }]}>
-                  {index + 1}
+            <View key={row.user_id}>
+              <View style={[styles.row, isMe ? styles.rowMe : null]}>
+                <View style={[styles.rank, rankTint[index] ?? null]}>
+                  <Text style={[styles.rankText, { color: rankTint[index]?.color ?? color.onSurfaceVariant }]}>
+                    {index + 1}
+                  </Text>
+                </View>
+                {/* the mark stands in whenever somebody has not set a picture */}
+                <View style={styles.face}>
+                  {row.avatar_url ? (
+                    <Image source={{ uri: row.avatar_url }} style={styles.faceImage} />
+                  ) : (
+                    <Image source={MARK} style={{ width: 22, height: 27 }} />
+                  )}
+                </View>
+                <Text numberOfLines={1} style={styles.rowName}>
+                  {isMe ? `${row.name} (you)` : row.name}
                 </Text>
-              </View>
-              {/* the mark stands in whenever somebody has not set a picture */}
-              <View style={styles.face}>
-                {row.avatar_url ? (
-                  <Image source={{ uri: row.avatar_url }} style={styles.faceImage} />
-                ) : (
-                  <Image source={MARK} style={{ width: 22, height: 27 }} />
+                <Text style={styles.rowValue}>{row.xp} XP</Text>
+
+                {/* nothing to report about yourself */}
+                {isMe ? null : (
+                  <Pressable
+                    accessibilityLabel={`Options for ${row.name}`}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                    onPress={() => setOpenRow(openRow === row.user_id ? '' : row.user_id)}
+                  >
+                    <Icon name="more-horiz" size={22} tint={color.onSurfaceVariant} />
+                  </Pressable>
                 )}
               </View>
-              <Text numberOfLines={1} style={styles.rowName}>
-                {isMe ? `${row.name} (you)` : row.name}
-              </Text>
-              <Text style={styles.rowValue}>{row.xp} XP</Text>
+
+              {openRow === row.user_id ? (
+                <View style={styles.rowActions}>
+                  <Pressable hitSlop={6} onPress={() => void report(row.user_id, row.name)}>
+                    <Text style={styles.rowAction}>Report this name or picture</Text>
+                  </Pressable>
+                </View>
+              ) : null}
             </View>
           );
         })}
@@ -264,12 +320,6 @@ export function ProfileScreen({
         ))}
       </View>
 
-      <Text style={styles.sectionHead}>Your snake</Text>
-      <View style={{ gap: 10, marginBottom: 22 }}>
-        <NavRow icon="pets" label="Customize" onPress={() => dispatch({ type: 'GO_TO', screen: 'customize' })} />
-        <NavRow icon="storefront" label="Shop" onPress={() => dispatch({ type: 'GO_TO', screen: 'shop' })} />
-      </View>
-
       <Text style={styles.sectionHead}>Achievements</Text>
       <View style={styles.badges}>
         {badges.map(([icon, title, earned]) => (
@@ -289,19 +339,6 @@ export function ProfileScreen({
   );
 }
 
-function NavRow({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, sink(pressed, edge.card)]}
-    >
-      <Icon name={icon} size={24} tint={color.onSurfaceVariant} />
-      <Text style={styles.rowName}>{label}</Text>
-      <Icon name="chevron-right" size={24} tint={color.onSurfaceVariant} />
-    </Pressable>
-  );
-}
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.surface },
@@ -355,7 +392,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: edge.card,
     backgroundColor: color.surfaceLowest,
   },
-  barColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%', gap: 8 },
+  barColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%', gap: 6 },
+  // takes whatever the labels leave behind, which is what the bar measures against
+  barTrack: { flex: 1, width: '100%', justifyContent: 'flex-end' },
   bar: { width: '100%', borderRadius: radius.pill, backgroundColor: color.primaryContainer },
   barLabel: { ...type.labelSm, fontSize: 11, color: color.onSurfaceVariant },
   barValue: { ...type.labelSm, fontSize: 10, color: color.onSurfaceVariant },
@@ -387,6 +426,14 @@ const styles = StyleSheet.create({
     backgroundColor: color.surfaceLow,
   },
   faceImage: { width: 34, height: 34, borderRadius: 17 },
+  rowActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  rowAction: { ...type.label, color: color.primary },
   rowValue: { ...type.label, color: color.onSurfaceVariant },
   rank: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: color.surfaceContainer },
   rankText: { ...type.label },

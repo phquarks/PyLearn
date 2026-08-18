@@ -12,6 +12,7 @@ import {
   type CosmeticSlot,
 } from '../data/cosmetics';
 import type { Action, State } from '../state/store';
+import { buyHearts, getErrorMessage, purchaseItem } from '../api/progress';
 import { color, edge, radius, space, type } from '../theme';
 import { SnakeCreature } from '../components/SnakeCreature';
 import { ChunkyButton, Icon, Note, sink } from '../components/ui';
@@ -61,11 +62,6 @@ export function CustomizeScreen({ state, dispatch }: { state: State; dispatch: (
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader
-        gems={state.gems}
-        onBack={() => dispatch({ type: 'GO_TO', screen: 'profile' })}
-        title="Your snake"
-      />
       <ScrollView
         contentContainerStyle={{
           paddingTop: 68 + insets.top + 16,
@@ -73,6 +69,9 @@ export function CustomizeScreen({ state, dispatch }: { state: State; dispatch: (
           paddingHorizontal: space.screen,
         }}
       >
+        <Text style={styles.display}>Sneaky</Text>
+        <Text style={styles.sub}>Your companion through the course. Dress him however you like.</Text>
+
         <SnakePreview state={state} />
 
         <Text style={styles.sectionHead}>Customize</Text>
@@ -145,10 +144,42 @@ export function CustomizeScreen({ state, dispatch }: { state: State; dispatch: (
 export function ShopScreen({ state, dispatch }: { state: State; dispatch: (action: Action) => void }) {
   const insets = useSafeAreaInsets();
   const [flash, setFlash] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState('');
 
-  function buy(item: Cosmetic) {
-    dispatch({ type: 'BUY_COSMETIC', id: item.id });
-    setFlash(`${item.name} is yours. Put it on from Your snake.`);
+  /* The purchase is not shown as done until the server has taken the gems.
+     Showing it first and correcting afterwards would mean an item briefly
+     appearing owned when the balance never covered it. */
+  async function buy(item: Cosmetic) {
+    setBusy(item.id);
+    setError('');
+
+    try {
+      const result = await purchaseItem(item.id);
+      dispatch({ type: 'APPLY_PURCHASE', gems: result.gems, ownedItems: result.owned_items });
+      setFlash(`${item.name} is yours. Put it on from Sneaky's page.`);
+    } catch (buyError) {
+      setFlash('');
+      setError(getErrorMessage(buyError));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function refill() {
+    setBusy('hearts');
+    setError('');
+
+    try {
+      const result = await buyHearts();
+      dispatch({ type: 'APPLY_HEARTS', gems: result.gems, hearts: result.hearts, nextAt: '' });
+      setFlash('Hearts topped back up to five.');
+    } catch (heartError) {
+      setFlash('');
+      setError(getErrorMessage(heartError));
+    } finally {
+      setBusy('');
+    }
   }
 
   const forSale = SLOTS.map((entry) => ({
@@ -159,7 +190,7 @@ export function ShopScreen({ state, dispatch }: { state: State; dispatch: (actio
 
   return (
     <View style={styles.screen}>
-      <ScreenHeader gems={state.gems} onBack={() => dispatch({ type: 'GO_TO', screen: 'profile' })} title="Shop" />
+      <ScreenHeader gems={state.gems} onBack={() => dispatch({ type: 'GO_TO', screen: 'customize' })} title="Shop" />
       <ScrollView
         contentContainerStyle={{
           paddingTop: 68 + insets.top + 16,
@@ -171,6 +202,7 @@ export function ShopScreen({ state, dispatch }: { state: State; dispatch: (actio
         <Text style={styles.sub}>Gems come from finished lessons. Spend them here.</Text>
 
         {flash ? <Note>{flash}</Note> : null}
+        {error ? <Note tone="error">{error}</Note> : null}
 
         <Text style={styles.sectionHead}>Hearts</Text>
         <View style={styles.item}>
@@ -182,12 +214,9 @@ export function ShopScreen({ state, dispatch }: { state: State; dispatch: (actio
             {heartsFull ? 'Your hearts are already full.' : `Back up to 5 from ${state.hearts}.`}
           </Text>
           <BuyButton
-            affordable={state.gems >= HEART_REFILL_PRICE}
+            affordable={state.gems >= HEART_REFILL_PRICE && busy === ''}
             disabledLabel={heartsFull ? 'Full' : undefined}
-            onPress={() => {
-              dispatch({ type: 'BUY_HEARTS' });
-              setFlash('Hearts topped back up to five.');
-            }}
+            onPress={() => void refill()}
             owned={false}
             price={HEART_REFILL_PRICE}
             sold={heartsFull}
@@ -208,8 +237,8 @@ export function ShopScreen({ state, dispatch }: { state: State; dispatch: (actio
                     </View>
                     <Text style={styles.itemName}>{item.name}</Text>
                     <BuyButton
-                      affordable={state.gems >= item.price}
-                      onPress={() => buy(item)}
+                      affordable={state.gems >= item.price && busy === ''}
+                      onPress={() => void buy(item)}
                       owned={held}
                       price={item.price}
                       sold={held}
@@ -223,7 +252,7 @@ export function ShopScreen({ state, dispatch }: { state: State; dispatch: (actio
 
         <ChunkyButton
           icon="checkroom"
-          label="Dress your snake"
+          label="Back to Sneaky"
           onPress={() => dispatch({ type: 'GO_TO', screen: 'customize' })}
           style={{ marginTop: space.md }}
           tone="ghost"

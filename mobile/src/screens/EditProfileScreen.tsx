@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { updateEmail } from '../api/auth';
+import { deleteAccount, updateEmail } from '../api/auth';
 import { clearAvatar, pickAvatar } from '../api/avatar';
 import { getErrorMessage } from '../api/progress';
 import { hasPin, setPin } from '../api/security';
@@ -21,12 +21,15 @@ export function EditProfileScreen({
   dispatch,
   userEmail,
   userId,
+  onDeleted,
   onPinChanged,
 }: {
   state: State;
   dispatch: (action: Action) => void;
   userEmail: string;
   userId: string;
+  /** clears the local session state once the account is gone */
+  onDeleted: () => void;
   /** lets App re-read whether a PIN exists, so the lock gate stays in step */
   onPinChanged: () => void;
 }) {
@@ -40,6 +43,7 @@ export function EditProfileScreen({
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     void hasPin().then(setPinSet);
@@ -84,6 +88,20 @@ export function EditProfileScreen({
     } catch (mailError) {
       setError(getErrorMessage(mailError));
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeAccount() {
+    setBusy(true);
+    setError('');
+
+    try {
+      await deleteAccount();
+      // the session is gone; App notices and returns to the welcome screens
+      onDeleted();
+    } catch (deleteError) {
+      setError(getErrorMessage(deleteError));
       setBusy(false);
     }
   }
@@ -183,6 +201,12 @@ export function EditProfileScreen({
           </View>
         </View>
 
+        {state.profileHidden ? (
+          <Note tone="error">
+            A moderator removed your name and picture from the League. Your progress is untouched.
+            Write to us if you think that was a mistake.
+          </Note>
+        ) : null}
         {note ? <Note>{note}</Note> : null}
         {error ? <Note tone="error">{error}</Note> : null}
 
@@ -240,6 +264,44 @@ export function EditProfileScreen({
           style={{ alignSelf: 'stretch', marginTop: 10 }}
         />
 
+
+        <Text style={styles.sectionHead}>Delete account</Text>
+        {confirmingDelete ? (
+          <>
+            <Text style={styles.hint}>
+              This removes your account, your XP and streak, every finished lesson, your gems and
+              what you bought with them, and your picture. It cannot be undone and nothing is kept.
+            </Text>
+            <ChunkyButton
+              disabled={busy}
+              icon="delete-forever"
+              label={busy ? 'Deleting...' : 'Yes, delete everything'}
+              onPress={() => void removeAccount()}
+              style={{ alignSelf: 'stretch', marginTop: 10 }}
+              tone="danger"
+            />
+            <ChunkyButton
+              disabled={busy}
+              label="Keep my account"
+              onPress={() => setConfirmingDelete(false)}
+              style={{ alignSelf: 'stretch', marginTop: 10 }}
+              tone="ghost"
+            />
+          </>
+        ) : (
+          <>
+            <Text style={styles.hint}>
+              Leaves for good and takes your progress with it.
+            </Text>
+            <ChunkyButton
+              icon="delete-outline"
+              label="Delete my account"
+              onPress={() => setConfirmingDelete(true)}
+              style={{ alignSelf: 'stretch', marginTop: 10 }}
+              tone="ghost"
+            />
+          </>
+        )}
 
         <ChunkyButton
           icon="arrow-back"
