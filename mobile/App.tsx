@@ -24,7 +24,7 @@ import {
   scheduleReminders,
   tidyTimes,
 } from './src/api/reminders';
-import { clearPin, hasPin } from './src/api/security';
+import { hasPin } from './src/api/security';
 import {
   getActivity,
   getErrorMessage,
@@ -35,8 +35,11 @@ import {
   today,
   loseHeart,
   getLeaderboard,
+  getShopPrices,
+  patchLearningProgress,
   upsertLearningProgress,
   type ActivityDay,
+  type ProfilePatch,
   type LeaderboardRow,
 } from './src/api/progress';
 import { costsHearts } from './src/data/lessons';
@@ -44,6 +47,7 @@ import { DrawnIcon } from './src/components/DrawnIcon';
 import { TabBar } from './src/components/TabBar';
 import { TopBar } from './src/components/TopBar';
 import { AdminScreen } from './src/screens/AdminScreen';
+import { BlockedScreen } from './src/screens/BlockedScreen';
 import { EditProfileScreen } from './src/screens/EditProfileScreen';
 import { AuthScreen, ChoiceScreen, LanguageScreen, OnboardingScreen } from './src/screens/EntryScreens';
 import { LockScreen } from './src/screens/LockScreen';
@@ -53,12 +57,23 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { LessonScreen } from './src/screens/LessonScreen';
 import { CustomizeScreen, ShopScreen } from './src/screens/SnakeScreens';
 import { LeagueScreen, ProfileScreen, ProgressScreen, ResultScreen } from './src/screens/TabScreens';
+import { translate } from './src/i18n';
+import { TextProvider, useText } from './src/i18n/useText';
 import { initialState, reducer, type Screen, type State } from './src/state/store';
 import { color } from './src/theme';
 
 const CHROME: Screen[] = ['home', 'progress', 'customize', 'league', 'profile'];
 
 export default function App() {
+  return (
+    <TextProvider>
+      <PyLearn />
+    </TextProvider>
+  );
+}
+
+function PyLearn() {
+  const { language } = useText();
   const [fontsLoaded] = useFonts({
     PlusJakartaSans_700Bold,
     PlusJakartaSans_800ExtraBold,
@@ -71,6 +86,7 @@ export default function App() {
   const [activity, setActivity] = useState<ActivityDay[]>([]);
   const [board, setBoard] = useState<LeaderboardRow[]>([]);
   const [boardError, setBoardError] = useState('');
+  const [prices, setPrices] = useState<Record<string, number>>({});
   const [admin, setAdmin] = useState(false);
   const [pinOn, setPinOn] = useState(false);
   const [pinChecked, setPinChecked] = useState(false);
@@ -82,9 +98,12 @@ export default function App() {
      see the current values without being torn down and rebuilt by them. */
   const gemsNow = useRef(state.gems);
   const savePending = useRef(false);
-  /* The row a failed save was carrying. Kept so the attempt can be repeated:
-     without it a name changed offline waits for the next unrelated edit. */
-  const unsavedRow = useRef<Parameters<typeof upsertLearningProgress>[0] | null>(null);
+  /* What the server is known to hold, and what a failed save was carrying.
+     The first is what changes are measured against; the second is kept so the
+     attempt can be repeated, since otherwise a name changed offline would wait
+     for the next unrelated edit. */
+  const savedProfile = useRef<ProfilePatch | null>(null);
+  const unsavedPatch = useRef<ProfilePatch | null>(null);
   const userId = session?.user.id;
 
   // restore a stored session, then follow sign-in and sign-out
@@ -103,18 +122,9 @@ export default function App() {
     });
   }, []);
 
-  /* Whether a PIN exists is read once at start. `locked` begins true so the
-     first frame can never flash the path before that answer arrives; if no PIN
-     is set it drops immediately and nothing is shown. */
+  /* The avatar is device-local and is read once. */
   useEffect(() => {
     let alive = true;
-
-    void hasPin().then((exists) => {
-      if (!alive) return;
-      setPinOn(exists);
-      setLocked(exists);
-      setPinChecked(true);
-    });
 
     void getAvatar().then((uri) => {
       if (alive && uri) dispatch({ type: 'SET_AVATAR', uri });
@@ -130,6 +140,34 @@ export default function App() {
     };
   }, []);
 
+  /* Whether a PIN exists is a question about the account, not the phone, so it
+     is asked again whenever the account changes — switching to another learner
+     and back must not look like the PIN was lost. `pinChecked` gates the app
+     until the answer arrives, or the path would flash past the lock. */
+  useEffect(() => {
+    let alive = true;
+
+    setPinChecked(false);
+
+    if (!userId) {
+      setPinOn(false);
+      setLocked(false);
+
+      return;
+    }
+
+    void hasPin(userId).then((exists) => {
+      if (!alive) return;
+      setPinOn(exists);
+      setLocked(exists);
+      setPinChecked(true);
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
+
   /* Re-lock when the app actually leaves the screen. 'inactive' is deliberately
      ignored: it also fires for a notification banner or the app switcher peek,
      and locking on those would be a nuisance rather than a protection. */
@@ -144,9 +182,11 @@ export default function App() {
   }, [pinOn]);
 
   const refreshPinState = useCallback(async () => {
-    setPinOn(await hasPin());
+    if (!userId) return;
+
+    setPinOn(await hasPin(userId));
     setPinChecked(true);
-  }, []);
+  }, [userId]);
 
   // pull saved progress once per signed-in user
   useEffect(() => {
@@ -180,6 +220,8 @@ export default function App() {
               snakeTrail: row.snake_trail || 'plain',
               avatarUrl: row.avatar_url ?? '',
               profileHidden: row.profile_hidden ?? false,
+              blocked: Boolean(row.blocked_at),
+              blockedReason: row.blocked_reason ?? '',
               completedLessons: row.completed_lessons ?? [],
               profileStartedAt: row.started_at,
               // a hidden profile has no name to restore, and pushing the old
@@ -187,8 +229,57 @@ export default function App() {
               displayName: row.profile_hidden ? '' : row.display_name || metaName,
             },
           });
-        } else if (metaName) {
-          dispatch({ type: 'SET_DISPLAY_NAME', name: metaName });
+          // what the server holds, so the first patch measures against it
+          savedProfile.current = {
+            display_name: row.display_name,
+            goal: row.goal,
+            experience: row.experience,
+            language: row.language,
+            snake_skin: row.snake_skin,
+            snake_hat: row.snake_hat,
+            snake_trail: row.snake_trail,
+            avatar_url: row.avatar_url,
+          };
+        } else {
+          /* No row yet. A patch is an update and would touch nothing, so the
+             row is created once here; everything after this is a patch. */
+          void upsertLearningProgress({
+            user_id: userId,
+            display_name: metaName || null,
+            goal: null,
+            experience: null,
+            language: 'Python',
+            xp: 0,
+            streak: 0,
+            hearts: 5,
+            gems: 0,
+            owned_items: [],
+            snake_skin: 'green',
+            snake_hat: 'none',
+            snake_trail: 'plain',
+            avatar_url: null,
+            profile_hidden: false,
+            blocked_at: null,
+            blocked_reason: null,
+            completed_lessons: [],
+          })
+            .then(() => {
+              savedProfile.current = {
+                display_name: metaName || null,
+                goal: null,
+                experience: null,
+                language: 'Python',
+                snake_skin: 'green',
+                snake_hat: 'none',
+                snake_trail: 'plain',
+                avatar_url: null,
+              };
+            })
+            .catch(() => undefined);
+
+          if (metaName) {
+            dispatch({ type: 'SET_DISPLAY_NAME', name: metaName });
+          }
         }
 
         // A saved profile means the intake questions were already answered, so
@@ -215,40 +306,47 @@ export default function App() {
     gemsNow.current = state.gems;
   }, [state.gems]);
 
-  // push changes back, debounced so a burst of taps is one write
+  /* Only what changed goes back, and only once the server's copy is known.
+     The whole row used to be posted on every edit, so a second device could
+     write its stale copy over everything the first had just changed. */
   useEffect(() => {
     if (!userId || !progressReady) return;
+
+    const current: ProfilePatch = {
+      display_name: state.displayName || null,
+      goal: state.goal || null,
+      experience: state.experience || null,
+      language: state.language,
+      snake_skin: state.snakeSkin,
+      snake_hat: state.snakeHat,
+      snake_trail: state.snakeTrail,
+      avatar_url: state.avatarUrl || null,
+    };
+
+    const saved = savedProfile.current;
+    const patch: ProfilePatch = {};
+
+    for (const key of Object.keys(current) as (keyof ProfilePatch)[]) {
+      if (!saved || saved[key] !== current[key]) {
+        // the cast is safe: key and value come from the same object
+        (patch as Record<string, unknown>)[key] = current[key];
+      }
+    }
+
+    if (Object.keys(patch).length === 0) return;
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
     savePending.current = true;
     saveTimer.current = setTimeout(() => {
-      const row = {
-        user_id: userId,
-        display_name: state.displayName || null,
-        goal: state.goal || null,
-        experience: state.experience || null,
-        language: state.language,
-        xp: state.xp,
-        streak: state.streak,
-        hearts: state.hearts,
-        gems: state.gems,
-        owned_items: state.ownedItems,
-        snake_skin: state.snakeSkin,
-        snake_hat: state.snakeHat,
-        snake_trail: state.snakeTrail,
-        avatar_url: state.avatarUrl || null,
-        profile_hidden: state.profileHidden,
-        completed_lessons: state.completedLessons,
-      };
-
-      upsertLearningProgress(row)
+      patchLearningProgress(userId, patch)
         .then(() => {
-          unsavedRow.current = null;
+          savedProfile.current = current;
+          unsavedPatch.current = null;
         })
         .catch((error) => {
-          unsavedRow.current = row;
-          dispatch({ type: 'SET_SYNC_MESSAGE', message: `Could not save progress: ${getErrorMessage(error)}` });
+          unsavedPatch.current = patch;
+          dispatch({ type: 'SET_SYNC_MESSAGE', message: `Could not save profile: ${getErrorMessage(error)}` });
         })
         .finally(() => {
           savePending.current = false;
@@ -265,37 +363,11 @@ export default function App() {
     state.goal,
     state.experience,
     state.language,
-    state.xp,
-    state.streak,
-    state.hearts,
-    state.gems,
-    state.ownedItems,
     state.snakeSkin,
     state.snakeHat,
     state.snakeTrail,
     state.avatarUrl,
-    state.completedLessons,
   ]);
-
-  /* The answer comes from the server. Comparing the session email here would
-     be a lie of convenience: it would hide the button from other people while
-     the database still had to be the thing that refuses them. */
-  useEffect(() => {
-    if (!userId) {
-      setAdmin(false);
-      return;
-    }
-
-    let alive = true;
-
-    void isAdmin().then((yes) => {
-      if (alive) setAdmin(yes);
-    });
-
-    return () => {
-      alive = false;
-    };
-  }, [userId]);
 
   /* Coming back to the app re-reads the balance, so an admin grant reaches a
      phone that is already open.
@@ -327,6 +399,38 @@ export default function App() {
     });
 
     return () => listener.remove();
+  }, [userId]);
+
+  /* Whether this account is an admin comes from the server. Comparing the
+     session email here would be a lie of convenience: it would hide the button
+     from other people while the database still had to be the thing that
+     refuses them. */
+  useEffect(() => {
+    if (!userId) {
+      setAdmin(false);
+      return;
+    }
+
+    let alive = true;
+
+    void isAdmin().then((yes) => {
+      if (alive) setAdmin(yes);
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
+
+  // the shop shows what the database will charge, not what the bundle guessed
+  useEffect(() => {
+    if (!userId) return;
+
+    void getShopPrices()
+      .then((fetched) => {
+        if (Object.keys(fetched).length) setPrices(fetched);
+      })
+      .catch(() => undefined);
   }, [userId]);
 
   const refreshActivity = useCallback(
@@ -495,7 +599,7 @@ export default function App() {
         dispatch({ type: 'QUEUE_AWARD', waiting });
         dispatch({
           type: 'SET_SYNC_MESSAGE',
-          message: 'Saved on this phone. It will sync when you are back online.',
+          message: translate(language, 'common.offlineSaved'),
         });
       });
   }, [state.pendingAward, userId, refreshActivity, refreshBoard]);
@@ -509,10 +613,10 @@ export default function App() {
 
     // the profile is retried alongside the lessons; both are waiting on the
     // same thing, and there is no sense having two schedules for one network
-    if (unsavedRow.current) {
+    if (unsavedPatch.current) {
       try {
-        await upsertLearningProgress(unsavedRow.current);
-        unsavedRow.current = null;
+        await patchLearningProgress(userId, unsavedPatch.current);
+        unsavedPatch.current = null;
       } catch {
         /* still offline */
       }
@@ -602,12 +706,14 @@ export default function App() {
     /* The PIN and the picture belong to the person, not to the phone. Leaving
        them behind would lock the next learner out with a code they never chose,
        and hand them somebody else's face. */
-    await clearPin();
     await clearAvatar();
     await clearReminders();
     await clearQueue();
+    savedProfile.current = null;
+    unsavedPatch.current = null;
     setPinOn(false);
     setLocked(false);
+    setPinChecked(false);
     setProgressReady(false);
     setActivity([]);
     setBoard([]);
@@ -624,10 +730,34 @@ export default function App() {
     );
   }
 
+  // signed in but the answer has not arrived: hold rather than flash the path
+  if (session && !pinChecked) {
+    return (
+      <View style={styles.boot}>
+        <DrawnIcon name="pl" size={160} />
+      </View>
+    );
+  }
+
+  /* A blocked account gets no further. The server refuses it anyway; this is
+     so the refusal reads as an answer rather than as everything being broken. */
+  if (session && progressReady && state.blocked) {
+    return (
+      <SafeAreaProvider>
+        <BlockedScreen onSignOut={() => void handleSignOut()} reason={state.blockedReason} />
+        <StatusBar style="dark" />
+      </SafeAreaProvider>
+    );
+  }
+
   if (pinOn && locked) {
     return (
       <SafeAreaProvider>
-        <LockScreen onForgot={() => void handleSignOut()} onUnlock={() => setLocked(false)} />
+        <LockScreen
+          onForgot={() => void handleSignOut()}
+          onUnlock={() => setLocked(false)}
+          userId={userId ?? ''}
+        />
         <StatusBar style="dark" />
       </SafeAreaProvider>
     );
@@ -640,6 +770,7 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <PinSetupScreen
+          userId={userId ?? ''}
           onDone={() => {
             setPinOn(true);
             setLocked(false);
@@ -665,6 +796,7 @@ export default function App() {
             boardError={boardError}
             dispatch={dispatch}
             isAdminUser={admin}
+            prices={prices}
             onEnableReminders={(wanted) => void setReminders(wanted, state.reminderTimes)}
             onReminders={(on, times) => void setReminders(on, times)}
             onHeartsRefresh={() => void refreshHearts()}
@@ -696,6 +828,7 @@ function Router({
   onEnableReminders,
   onReminders,
   isAdminUser,
+  prices,
   activity,
   board,
   boardError,
@@ -710,10 +843,13 @@ function Router({
   onEnableReminders: (wanted: boolean) => void;
   onReminders: (on: boolean, times: string[]) => void;
   isAdminUser: boolean;
+  prices: Record<string, number>;
   activity: ActivityDay[];
   board: LeaderboardRow[];
   boardError: string;
 }) {
+  const { t } = useText();
+
   switch (state.screen) {
     case 'onboarding':
       return <OnboardingScreen dispatch={dispatch} state={state} />;
@@ -724,13 +860,13 @@ function Router({
         <ChoiceScreen
           onSelect={(goal) => dispatch({ type: 'SET_GOAL', goal })}
           options={[
-            { icon: 'work', title: 'For work', text: 'Automation, data, backend' },
-            { icon: 'school', title: 'For school', text: 'Exams, projects, contests' },
-            { icon: 'auto-awesome', title: 'Out of curiosity', text: 'Understand how programs are written' },
-            { icon: 'rocket-launch', title: 'To switch careers', text: 'A start in development' },
+            { icon: 'work', title: t('intake.goalWork'), text: t('intake.goalWorkText') },
+            { icon: 'school', title: t('intake.goalSchool'), text: t('intake.goalSchoolText') },
+            { icon: 'auto-awesome', title: t('intake.goalCurious'), text: t('intake.goalCuriousText') },
+            { icon: 'rocket-launch', title: t('intake.goalCareer'), text: t('intake.goalCareerText') },
           ]}
-          subtitle="We will tune the course to your goal."
-          title="Why are you learning Python?"
+          subtitle={t('intake.goalSub')}
+          title={t('intake.goalTitle')}
         />
       );
     case 'experience':
@@ -738,12 +874,12 @@ function Router({
         <ChoiceScreen
           onSelect={(experience) => dispatch({ type: 'SET_EXPERIENCE', experience })}
           options={[
-            { icon: 'eco', title: 'Beginner', text: 'Writing code for the first time' },
-            { icon: 'extension', title: 'Know the basics', text: 'Comfortable with variables and conditions' },
-            { icon: 'fitness-center', title: 'Confident', text: 'Want to sharpen my Python' },
+            { icon: 'eco', title: t('intake.expNew'), text: t('intake.expNewText') },
+            { icon: 'extension', title: t('intake.expSome'), text: t('intake.expSomeText') },
+            { icon: 'fitness-center', title: t('intake.expConfident'), text: t('intake.expConfidentText') },
           ]}
-          subtitle="We will keep the first lesson comfortable."
-          title="What is your experience?"
+          subtitle={t('intake.expSub')}
+          title={t('intake.expTitle')}
         />
       );
     case 'language':
@@ -791,9 +927,9 @@ function Router({
         />
       );
     case 'customize':
-      return <CustomizeScreen dispatch={dispatch} state={state} />;
+      return <CustomizeScreen dispatch={dispatch} prices={prices} state={state} />;
     case 'shop':
-      return <ShopScreen dispatch={dispatch} state={state} />;
+      return <ShopScreen dispatch={dispatch} prices={prices} state={state} />;
     case 'home':
     default:
       return <HomeScreen dispatch={dispatch} state={state} />;

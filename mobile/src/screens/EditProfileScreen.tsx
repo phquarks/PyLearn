@@ -8,9 +8,10 @@ import { getErrorMessage } from '../api/progress';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { formatTime, MAX_TIMES, parseTime } from '../api/reminders';
-import { hasPin, setPin } from '../api/security';
+import { clearPin, hasPin, setPin } from '../api/security';
 import { PinPad } from '../components/PinPad';
 import { ChunkyButton, Icon, Note } from '../components/ui';
+import { useText } from '../i18n/useText';
 import type { Action, State } from '../state/store';
 import { color, radius, space, type } from '../theme';
 
@@ -40,6 +41,7 @@ export function EditProfileScreen({
   onPinChanged: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { t, language, setLanguage } = useText();
   const [email, setEmail] = useState(userEmail);
   const [pinSet, setPinSet] = useState(false);
   const [step, setStep] = useState<PinStep>('off');
@@ -53,8 +55,8 @@ export function EditProfileScreen({
   const [addingTime, setAddingTime] = useState(false);
 
   useEffect(() => {
-    void hasPin().then(setPinSet);
-  }, []);
+    void hasPin(userId).then(setPinSet);
+  }, [userId]);
 
   async function choosePicture() {
     setError('');
@@ -64,7 +66,7 @@ export function EditProfileScreen({
 
       if (picked.uri) {
         dispatch({ type: 'SET_AVATAR', uri: picked.uri, url: picked.url });
-        setNote('Picture updated. Other learners will see it in the League.');
+        setNote(t('edit.pictureUpdated'));
       }
     } catch (pickError) {
       setError(getErrorMessage(pickError));
@@ -74,14 +76,14 @@ export function EditProfileScreen({
   async function removePicture() {
     await clearAvatar();
     dispatch({ type: 'SET_AVATAR', uri: '', url: '' });
-    setNote('Picture removed.');
+    setNote(t('edit.pictureRemoved'));
   }
 
   async function saveEmail() {
     const next = email.trim();
 
     if (next === userEmail) {
-      setError('That is already your email.');
+      setError(t('edit.emailSame'));
       return;
     }
 
@@ -91,7 +93,7 @@ export function EditProfileScreen({
 
     try {
       await updateEmail(next);
-      setNote('Check the new address and follow the link to finish the change.');
+      setNote(t('edit.emailSent'));
     } catch (mailError) {
       setError(getErrorMessage(mailError));
     } finally {
@@ -105,6 +107,8 @@ export function EditProfileScreen({
 
     try {
       await deleteAccount();
+      // the account is gone, so its PIN has nothing left to guard
+      await clearPin(userId);
       // the session is gone; App notices and returns to the welcome screens
       onDeleted();
     } catch (deleteError) {
@@ -133,18 +137,18 @@ export function EditProfileScreen({
 
     if (pin !== firstEntry) {
       setFirstEntry('');
-      setPinError('Those did not match. Start again.');
+      setPinError(t('pin.mismatch'));
       setRound((value) => value + 1);
       setStep('enter');
       return;
     }
 
     try {
-      await setPin(pin);
+      await setPin(userId, pin);
       setPinSet(true);
       onPinChanged();
       setStep('off');
-      setNote('PIN saved. It will be asked for next time the app opens.');
+      setNote(t('edit.pinSaved'));
     } catch (pinSaveError) {
       setPinError(getErrorMessage(pinSaveError));
       setRound((value) => value + 1);
@@ -158,12 +162,8 @@ export function EditProfileScreen({
           error={pinError}
           onComplete={(pin) => void onPinEntered(pin)}
           resetKey={round}
-          subtitle={
-            step === 'enter'
-              ? 'Pick four digits. You will type them again to confirm.'
-              : 'Type the same four digits once more.'
-          }
-          title={step === 'enter' ? 'Choose a PIN' : 'Confirm your PIN'}
+          subtitle={step === 'enter' ? t('pin.protectSub') : t('pin.confirmSub')}
+          title={step === 'enter' ? t('pin.protect') : t('pin.confirm')}
         />
 
         <Pressable hitSlop={10} onPress={() => setStep('off')} style={styles.cancel}>
@@ -183,12 +183,15 @@ export function EditProfileScreen({
         }}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.display}>Edit profile</Text>
+        <Text style={styles.display}>{t('edit.title')}</Text>
 
         <View style={styles.avatarRow}>
           <Pressable accessibilityRole="button" onPress={() => void choosePicture()} style={styles.avatar}>
-            {state.avatarUri ? (
-              <Image source={{ uri: state.avatarUri }} style={styles.avatarImage} />
+            {state.avatarUri || state.avatarUrl ? (
+              <Image
+                source={{ uri: state.avatarUri || state.avatarUrl }}
+                style={styles.avatarImage}
+              />
             ) : (
               <Image source={MARK} style={{ width: 54, height: 65 }} />
             )}
@@ -198,11 +201,11 @@ export function EditProfileScreen({
           </Pressable>
 
           <View style={styles.avatarSide}>
-            <Text style={styles.sectionHead}>Picture</Text>
-            <Text style={styles.hint}>Shown next to your name in the League.</Text>
-            {state.avatarUri ? (
+            <Text style={styles.sectionHead}>{t('edit.picture')}</Text>
+            <Text style={styles.hint}>{t('edit.pictureHint')}</Text>
+            {state.avatarUri || state.avatarUrl ? (
               <Pressable hitSlop={8} onPress={() => void removePicture()}>
-                <Text style={styles.link}>Remove picture</Text>
+                <Text style={styles.link}>{t('edit.removePicture')}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -210,28 +213,27 @@ export function EditProfileScreen({
 
         {state.profileHidden ? (
           <Note tone="error">
-            A moderator removed your name and picture from the League. Your progress is untouched.
-            Write to us if you think that was a mistake.
+            {t('edit.hidden')}
           </Note>
         ) : null}
         {note ? <Note>{note}</Note> : null}
         {error ? <Note tone="error">{error}</Note> : null}
 
-        <Text style={styles.sectionHead}>Name</Text>
+        <Text style={styles.sectionHead}>{t('edit.name')}</Text>
         <View style={styles.field}>
           <Icon name="person-outline" size={20} tint={color.outline} />
           <TextInput
             maxLength={24}
             onChangeText={(name) => dispatch({ type: 'SET_DISPLAY_NAME', name })}
-            placeholder="Your name"
+            placeholder={t('edit.namePlaceholder')}
             placeholderTextColor={color.outline}
             style={styles.fieldInput}
             value={state.displayName}
           />
         </View>
-        <Text style={styles.hint}>This is the name other learners see in the League.</Text>
+        <Text style={styles.hint}>{t('edit.nameHint')}</Text>
 
-        <Text style={styles.sectionHead}>Email</Text>
+        <Text style={styles.sectionHead}>{t('edit.email')}</Text>
         <View style={styles.field}>
           <Icon name="mail-outline" size={20} tint={color.outline} />
           <TextInput
@@ -246,33 +248,32 @@ export function EditProfileScreen({
         </View>
         <ChunkyButton
           disabled={busy || !email.trim() || email.trim() === userEmail}
-          label={busy ? 'Sending...' : 'Change email'}
+          label={busy ? t('edit.sending') : t('edit.changeEmail')}
           onPress={() => void saveEmail()}
           style={{ alignSelf: 'stretch', marginTop: 10 }}
           tone="ghost"
         />
         <Text style={styles.hint}>
-          The address only changes once you follow the link we send to the new one.
+          {t('edit.emailHint')}
         </Text>
 
-        <Text style={styles.sectionHead}>PIN</Text>
+        <Text style={styles.sectionHead}>{t('edit.pin')}</Text>
         <View style={styles.pinRow}>
           <Icon name={pinSet ? 'lock' : 'lock-open'} size={22} tint={pinSet ? color.primary : color.outline} />
-          <Text style={styles.pinState}>{pinSet ? 'PIN is on' : 'No PIN yet'}</Text>
+          <Text style={styles.pinState}>{pinSet ? t('edit.pinOn') : t('edit.pinOff')}</Text>
         </View>
         <Text style={styles.hint}>
-          Required, and asked for each time the app opens. It locks this phone, not the account —
-          signing in elsewhere still needs your password.
+          {t('edit.pinHint')}
         </Text>
 
         <ChunkyButton
-          label={pinSet ? 'Change PIN' : 'Set a PIN'}
+          label={pinSet ? t('edit.changePin') : t('edit.setPin')}
           onPress={openPinSheet}
           style={{ alignSelf: 'stretch', marginTop: 10 }}
         />
 
 
-        <Text style={styles.sectionHead}>Daily reminder</Text>
+        <Text style={styles.sectionHead}>{t('edit.reminders')}</Text>
         <View style={styles.toggleRow}>
           <Icon
             name={state.remindersOn ? 'notifications-active' : 'notifications-off'}
@@ -280,8 +281,10 @@ export function EditProfileScreen({
             tint={state.remindersOn ? color.primary : color.outline}
           />
           <View style={styles.toggleText}>
-            <Text style={styles.pinState}>{state.remindersOn ? 'On' : 'Off'}</Text>
-            <Text style={styles.hint}>Never on a day you have already practised.</Text>
+            <Text style={styles.pinState}>
+              {state.remindersOn ? t('edit.remindersOn') : t('edit.remindersOff')}
+            </Text>
+            <Text style={styles.hint}>{t('edit.remindersHint')}</Text>
           </View>
           <Switch
             onValueChange={(next) => onReminders(next, state.reminderTimes)}
@@ -320,13 +323,13 @@ export function EditProfileScreen({
             {state.reminderTimes.length < MAX_TIMES ? (
               <ChunkyButton
                 icon={addingTime ? 'check' : 'add'}
-                label={addingTime ? 'Done' : 'Add a time'}
+                label={addingTime ? t('edit.doneAdding') : t('edit.addTime')}
                 onPress={() => setAddingTime((open) => !open)}
                 style={{ alignSelf: 'stretch', marginTop: 10 }}
                 tone="ghost"
               />
             ) : (
-              <Text style={styles.hint}>That is as many as one day gets.</Text>
+              <Text style={styles.hint}>{t('edit.timesFull')}</Text>
             )}
 
             {addingTime ? (
@@ -354,30 +357,49 @@ export function EditProfileScreen({
 
             <Text style={styles.hint}>
               {state.reminderTimes.length === 1
-                ? 'One reminder a day.'
-                : `${state.reminderTimes.length} reminders a day, unless you have already practised.`}
+                ? t('edit.oneADay')
+                : t('edit.manyADay', { count: state.reminderTimes.length })}
             </Text>
           </>
         ) : null}
 
-        <Text style={styles.sectionHead}>Delete account</Text>
+        <Text style={styles.sectionHead}>{t('edit.language')}</Text>
+        <View style={styles.hours}>
+          {(['ru', 'en'] as const).map((code) => {
+            const picked = language === code;
+
+            return (
+              <Pressable
+                key={code}
+                onPress={() => setLanguage(code)}
+                style={[styles.hour, picked ? styles.hourPicked : null]}
+              >
+                <Text style={[styles.hourText, picked ? styles.hourTextPicked : null]}>
+                  {code === 'ru' ? 'Русский' : 'English'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={styles.hint}>{t('edit.languageHint')}</Text>
+
+        <Text style={styles.sectionHead}>{t('edit.deleteTitle')}</Text>
         {confirmingDelete ? (
           <>
             <Text style={styles.hint}>
-              This removes your account, your XP and streak, every finished lesson, your gems and
-              what you bought with them, and your picture. It cannot be undone and nothing is kept.
+              {t('edit.deleteWarning')}
             </Text>
             <ChunkyButton
               disabled={busy}
               icon="delete-forever"
-              label={busy ? 'Deleting...' : 'Yes, delete everything'}
+              label={busy ? t('edit.deleting') : t('edit.deleteConfirm')}
               onPress={() => void removeAccount()}
               style={{ alignSelf: 'stretch', marginTop: 10 }}
               tone="danger"
             />
             <ChunkyButton
               disabled={busy}
-              label="Keep my account"
+              label={t('edit.deleteCancel')}
               onPress={() => setConfirmingDelete(false)}
               style={{ alignSelf: 'stretch', marginTop: 10 }}
               tone="ghost"
@@ -386,11 +408,11 @@ export function EditProfileScreen({
         ) : (
           <>
             <Text style={styles.hint}>
-              Leaves for good and takes your progress with it.
+              {t('edit.deleteHint')}
             </Text>
             <ChunkyButton
               icon="delete-outline"
-              label="Delete my account"
+              label={t('edit.deleteAsk')}
               onPress={() => setConfirmingDelete(true)}
               style={{ alignSelf: 'stretch', marginTop: 10 }}
               tone="ghost"
@@ -400,7 +422,7 @@ export function EditProfileScreen({
 
         <ChunkyButton
           icon="arrow-back"
-          label="Back to profile"
+          label={t('edit.back')}
           onPress={() => dispatch({ type: 'GO_TO', screen: 'profile' })}
           style={{ alignSelf: 'stretch', marginTop: space.md }}
           tone="ghost"
@@ -479,6 +501,19 @@ const styles = StyleSheet.create({
     backgroundColor: color.surfaceLowest,
   },
   toggleText: { flex: 1 },
+  hours: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  hour: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: color.surfaceHighest,
+    backgroundColor: color.surfaceLowest,
+  },
+  hourPicked: { borderColor: color.primaryContainer, backgroundColor: color.primaryWashSoft },
+  hourText: { ...type.label, color: color.onSurfaceVariant },
+  hourTextPicked: { color: color.onPrimaryContainer },
   timeRow: {
     flexDirection: 'row',
     alignItems: 'center',

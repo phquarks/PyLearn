@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { verifyPin } from '../api/security';
 import { PinPad } from '../components/PinPad';
+import { useText } from '../i18n/useText';
 import { color, space, type } from '../theme';
 
 const MARK = require('../../assets/logo-mark.png');
@@ -16,8 +17,17 @@ const MARK = require('../../assets/logo-mark.png');
  * into a much longer sit. It is not a lockout, because locking a learner out of
  * their own streak over a fat-fingered entry would be the worse failure.
  */
-export function LockScreen({ onUnlock, onForgot }: { onUnlock: () => void; onForgot: () => void }) {
+export function LockScreen({
+  userId,
+  onUnlock,
+  onForgot,
+}: {
+  userId: string;
+  onUnlock: () => void;
+  onForgot: () => void;
+}) {
   const insets = useSafeAreaInsets();
+  const { t } = useText();
   const [error, setError] = useState('');
   const [misses, setMisses] = useState(0);
   const [checking, setChecking] = useState(false);
@@ -27,7 +37,7 @@ export function LockScreen({ onUnlock, onForgot }: { onUnlock: () => void; onFor
     setChecking(true);
     setError('');
 
-    const ok = await verifyPin(pin);
+    const ok = await verifyPin(userId, pin);
 
     if (ok) {
       onUnlock();
@@ -40,7 +50,7 @@ export function LockScreen({ onUnlock, onForgot }: { onUnlock: () => void; onFor
 
     setMisses(next);
     setTimeout(() => {
-      setError(next > 2 ? `Wrong PIN. ${next} attempts so far.` : 'Wrong PIN. Try again.');
+      setError(next > 2 ? t('pin.wrongCount', { count: next }) : t('pin.wrong'));
       setRound((value) => value + 1);
       setChecking(false);
     }, wait);
@@ -58,12 +68,12 @@ export function LockScreen({ onUnlock, onForgot }: { onUnlock: () => void; onFor
         error={error}
         onComplete={(pin) => void submit(pin)}
         resetKey={round}
-        subtitle="Enter your PIN to carry on learning."
-        title="Welcome back"
+        subtitle={t('pin.enter')}
+        title={t('pin.welcome')}
       />
 
       <Pressable hitSlop={10} onPress={onForgot} style={styles.forgot}>
-        <Text style={styles.forgotText}>Forgot your PIN? Log out</Text>
+        <Text style={styles.forgotText}>{t('pin.forgot')}</Text>
       </Pressable>
     </View>
   );

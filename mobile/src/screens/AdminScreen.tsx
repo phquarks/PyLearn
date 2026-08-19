@@ -12,7 +12,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { grantGems } from '../api/admin';
-import { hideProfile, openReports, showProfile, type OpenReport } from '../api/moderation';
+import {
+  blockAccount,
+  hideProfile,
+  openReports,
+  showProfile,
+  unblockAccount,
+  type OpenReport,
+} from '../api/moderation';
 import { getErrorMessage } from '../api/progress';
 import { ChunkyButton, Icon, Note } from '../components/ui';
 import type { Action } from '../state/store';
@@ -35,8 +42,26 @@ export function AdminScreen({ dispatch }: { dispatch: (action: Action) => void }
   const [amount, setAmount] = useState('100');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [note, setNote] = useState('');
   const [log, setLog] = useState<Entry[]>([]);
   const [reports, setReports] = useState<OpenReport[]>([]);
+  const [reason, setReason] = useState('');
+
+  async function run(action: () => Promise<unknown>, done: string) {
+    setBusy(true);
+    setError('');
+
+    try {
+      await action();
+      await loadReports();
+      setNote(done);
+    } catch (actionError) {
+      setNote('');
+      setError(getErrorMessage(actionError));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function loadReports() {
     try {
@@ -96,6 +121,7 @@ export function AdminScreen({ dispatch }: { dispatch: (action: Action) => void }
         <Text style={styles.sub}>Grant gems to an account by its email address.</Text>
 
         {error ? <Note tone="error">{error}</Note> : null}
+        {note ? <Note>{note}</Note> : null}
 
         <Text style={styles.sectionHead}>Account</Text>
         <View style={styles.field}>
@@ -196,6 +222,38 @@ export function AdminScreen({ dispatch }: { dispatch: (action: Action) => void }
         />
         <Text style={styles.hint}>Uses the email above. Undoes a hide once it has been sorted out.</Text>
 
+        <Text style={styles.sectionHead}>Block account</Text>
+        <View style={styles.field}>
+          <Icon name="block" size={20} tint={color.outline} />
+          <TextInput
+            onChangeText={setReason}
+            placeholder="Reason, shown to them (optional)"
+            placeholderTextColor={color.outline}
+            style={styles.fieldInput}
+            value={reason}
+          />
+        </View>
+        <Text style={styles.hint}>
+          Uses the email above. A blocked account keeps its progress but cannot earn, spend or
+          appear on the board, and the refusal is enforced by the database rather than the app.
+        </Text>
+        <ChunkyButton
+          disabled={!email.trim().includes('@') || busy}
+          icon="block"
+          label="Block this account"
+          onPress={() => void run(() => blockAccount(email, reason), `${email.trim()} is blocked.`)}
+          style={{ alignSelf: 'stretch', marginTop: 10 }}
+          tone="danger"
+        />
+        <ChunkyButton
+          disabled={!email.trim().includes('@') || busy}
+          icon="lock-open"
+          label="Unblock"
+          onPress={() => void run(() => unblockAccount(email), `${email.trim()} can use the app again.`)}
+          style={{ alignSelf: 'stretch', marginTop: 10 }}
+          tone="ghost"
+        />
+
         <Text style={styles.sectionHead}>Reports</Text>
         {reports.length === 0 ? (
           <Text style={styles.hint}>Nothing reported. This list fills itself from the League.</Text>
@@ -222,6 +280,19 @@ export function AdminScreen({ dispatch }: { dispatch: (action: Action) => void }
                   onPress={() => void hide(entry)}
                   style={{ alignSelf: 'stretch', marginTop: 10 }}
                   tone="ghost"
+                />
+                <ChunkyButton
+                  disabled={busy}
+                  icon="block"
+                  label="Block this account"
+                  onPress={() =>
+                    void run(
+                      () => blockAccount(entry.email, reason),
+                      `${entry.email} is blocked.`,
+                    )
+                  }
+                  style={{ alignSelf: 'stretch', marginTop: 10 }}
+                  tone="danger"
                 />
               </View>
             ))}

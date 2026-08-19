@@ -11,6 +11,7 @@ import {
   type Cosmetic,
   type CosmeticSlot,
 } from '../data/cosmetics';
+import { useText } from '../i18n/useText';
 import type { Action, State } from '../state/store';
 import { buyHearts, getErrorMessage, purchaseItem } from '../api/progress';
 import { color, edge, radius, space, type } from '../theme';
@@ -54,8 +55,18 @@ function SnakePreview({ state }: { state: State }) {
   );
 }
 
-export function CustomizeScreen({ state, dispatch }: { state: State; dispatch: (action: Action) => void }) {
+export function CustomizeScreen({
+  state,
+  dispatch,
+  prices,
+}: {
+  state: State;
+  dispatch: (action: Action) => void;
+  /** what the database charges; the catalogue's own price is the fallback */
+  prices: Record<string, number>;
+}) {
   const insets = useSafeAreaInsets();
+  const { t } = useText();
   const [slot, setSlot] = useState<CosmeticSlot>('skin');
   const items = bySlot(slot);
   const worn = { skin: state.snakeSkin, hat: state.snakeHat, trail: state.snakeTrail };
@@ -69,12 +80,12 @@ export function CustomizeScreen({ state, dispatch }: { state: State; dispatch: (
           paddingHorizontal: space.screen,
         }}
       >
-        <Text style={styles.display}>Sneaky</Text>
-        <Text style={styles.sub}>Your companion through the course. Dress him however you like.</Text>
+        <Text style={styles.display}>{t('snake.title')}</Text>
+        <Text style={styles.sub}>{t('snake.sub')}</Text>
 
         <SnakePreview state={state} />
 
-        <Text style={styles.sectionHead}>Customize</Text>
+        <Text style={styles.sectionHead}>{t('snake.customize')}</Text>
         <View style={styles.tabs}>
           {SLOTS.map((entry) => (
             <Pressable
@@ -121,7 +132,7 @@ export function CustomizeScreen({ state, dispatch }: { state: State; dispatch: (
                 {held ? null : (
                   <View style={styles.priceRow}>
                     <Icon name="diamond" size={13} tint={color.price} />
-                    <Text style={styles.priceSmall}>{item.price}</Text>
+                    <Text style={styles.priceSmall}>{prices[item.id] ?? item.price}</Text>
                   </View>
                 )}
               </Pressable>
@@ -131,7 +142,7 @@ export function CustomizeScreen({ state, dispatch }: { state: State; dispatch: (
 
         <ChunkyButton
           icon="storefront"
-          label="Go to shop"
+          label={t('snake.toShop')}
           onPress={() => dispatch({ type: 'GO_TO', screen: 'shop' })}
           style={{ marginTop: space.md }}
           tone="ghost"
@@ -141,8 +152,17 @@ export function CustomizeScreen({ state, dispatch }: { state: State; dispatch: (
   );
 }
 
-export function ShopScreen({ state, dispatch }: { state: State; dispatch: (action: Action) => void }) {
+export function ShopScreen({
+  state,
+  dispatch,
+  prices,
+}: {
+  state: State;
+  dispatch: (action: Action) => void;
+  prices: Record<string, number>;
+}) {
   const insets = useSafeAreaInsets();
+  const { t } = useText();
   const [flash, setFlash] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
@@ -157,7 +177,7 @@ export function ShopScreen({ state, dispatch }: { state: State; dispatch: (actio
     try {
       const result = await purchaseItem(item.id);
       dispatch({ type: 'APPLY_PURCHASE', gems: result.gems, ownedItems: result.owned_items });
-      setFlash(`${item.name} is yours. Put it on from Sneaky's page.`);
+      setFlash(t('shop.bought', { item: item.name }));
     } catch (buyError) {
       setFlash('');
       setError(getErrorMessage(buyError));
@@ -173,7 +193,7 @@ export function ShopScreen({ state, dispatch }: { state: State; dispatch: (actio
     try {
       const result = await buyHearts();
       dispatch({ type: 'APPLY_HEARTS', gems: result.gems, hearts: result.hearts, nextAt: '' });
-      setFlash('Hearts topped back up to five.');
+      setFlash(t('shop.refilled'));
     } catch (heartError) {
       setFlash('');
       setError(getErrorMessage(heartError));
@@ -198,24 +218,24 @@ export function ShopScreen({ state, dispatch }: { state: State; dispatch: (actio
           paddingHorizontal: space.screen,
         }}
       >
-        <Text style={styles.display}>Snake Shop</Text>
-        <Text style={styles.sub}>Gems come from finished lessons. Spend them here.</Text>
+        <Text style={styles.display}>{t('shop.title')}</Text>
+        <Text style={styles.sub}>{t('shop.sub')}</Text>
 
         {flash ? <Note>{flash}</Note> : null}
         {error ? <Note tone="error">{error}</Note> : null}
 
-        <Text style={styles.sectionHead}>Hearts</Text>
+        <Text style={styles.sectionHead}>{t('shop.hearts')}</Text>
         <View style={styles.item}>
           <View style={styles.itemArt}>
             <Icon name="favorite" size={52} tint={color.error} />
           </View>
-          <Text style={styles.itemName}>Heart Refill</Text>
+          <Text style={styles.itemName}>{t('shop.heartRefill')}</Text>
           <Text style={styles.itemNote}>
-            {heartsFull ? 'Your hearts are already full.' : `Back up to 5 from ${state.hearts}.`}
+            {heartsFull ? t('shop.heartsFull') : t('shop.heartsFrom', { count: state.hearts })}
           </Text>
           <BuyButton
             affordable={state.gems >= HEART_REFILL_PRICE && busy === ''}
-            disabledLabel={heartsFull ? 'Full' : undefined}
+            disabledLabel={heartsFull ? t('shop.full') : undefined}
             onPress={() => void refill()}
             owned={false}
             price={HEART_REFILL_PRICE}
@@ -237,10 +257,10 @@ export function ShopScreen({ state, dispatch }: { state: State; dispatch: (actio
                     </View>
                     <Text style={styles.itemName}>{item.name}</Text>
                     <BuyButton
-                      affordable={state.gems >= item.price && busy === ''}
+                      affordable={state.gems >= (prices[item.id] ?? item.price) && busy === ''}
                       onPress={() => void buy(item)}
                       owned={held}
-                      price={item.price}
+                      price={prices[item.id] ?? item.price}
                       sold={held}
                     />
                   </View>
@@ -252,7 +272,7 @@ export function ShopScreen({ state, dispatch }: { state: State; dispatch: (actio
 
         <ChunkyButton
           icon="checkroom"
-          label="Back to Sneaky"
+          label={t('shop.back')}
           onPress={() => dispatch({ type: 'GO_TO', screen: 'customize' })}
           style={{ marginTop: space.md }}
           tone="ghost"

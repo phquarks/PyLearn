@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { color, edge, path as P, radius, space, type } from '../theme';
 import { costsHearts, lessons, unitDone, units, type UnitTone } from '../data/lessons';
+import { useText } from '../i18n/useText';
 import type { Action, State } from '../state/store';
 import { Icon, sink } from '../components/ui';
 
@@ -40,6 +41,7 @@ const tones: Record<UnitTone, { fill: string; edge: string; on: string }> = {
 
 export function HomeScreen({ state, dispatch }: { state: State; dispatch: (action: Action) => void }) {
   const insets = useSafeAreaInsets();
+  const { t } = useText();
   const { height: screenHeight } = useWindowDimensions();
   const scroller = useRef<ScrollView>(null);
   /* Where each unit block sits in the scroll, and where its ribbon sits inside
@@ -111,7 +113,7 @@ export function HomeScreen({ state, dispatch }: { state: State; dispatch: (actio
           >
             <View style={[styles.unit, { backgroundColor: tone.fill, borderBottomColor: tone.edge }]}>
               <Text style={[styles.unitKicker, { color: tone.on }]}>
-                Unit {unit.id} · {done} of {unit.lessons.length} lessons
+                {t('home.unitLine', { number: unit.id, done, total: unit.lessons.length })}
               </Text>
               <Text style={[styles.unitTitle, { color: tone.on }]}>{unit.title}</Text>
               <Text style={[styles.unitText, { color: tone.on }]}>{unit.summary}</Text>
@@ -167,7 +169,7 @@ export function HomeScreen({ state, dispatch }: { state: State; dispatch: (actio
                         </Svg>
                         <View style={[styles.cheer, cx(index) >= P.width / 2 ? styles.cheerLeft : styles.cheerRight]}>
                           <Image source={MARK} style={styles.cheerMark} />
-                          <Text style={styles.cheerText}>You&rsquo;re doing great! Keep it up!</Text>
+                          <Text style={styles.cheerText}>{t('home.cheer')}</Text>
                         </View>
                       </>
                     ) : null}
@@ -200,7 +202,7 @@ export function HomeScreen({ state, dispatch }: { state: State; dispatch: (actio
                       />
                     </Pressable>
 
-                    <Text style={styles.stoneLabel}>{open ? lesson.title : 'Locked'}</Text>
+                    <Text style={styles.stoneLabel}>{open ? lesson.title : t('home.locked')}</Text>
                   </View>
                 );
               })}
@@ -219,7 +221,9 @@ export function HomeScreen({ state, dispatch }: { state: State; dispatch: (actio
                 >
                   <Icon name={cleared ? 'redeem' : 'lock'} size={40} tint={color.onSecondaryFixed} />
                 </Pressable>
-                <Text style={styles.stoneLabel}>{cleared ? 'Unit cleared' : 'Unit reward'}</Text>
+                <Text style={styles.stoneLabel}>
+                  {cleared ? t('home.unitCleared') : t('home.unitReward')}
+                </Text>
               </View>
             </View>
           </View>

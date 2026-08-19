@@ -7,6 +7,7 @@ import { color, edge, radius, space, type } from '../theme';
 import { onboardingSlides } from '../data/lessons';
 import { signInWithEmail, signUpWithEmail } from '../api/auth';
 import { getErrorMessage } from '../api/progress';
+import { useText } from '../i18n/useText';
 import type { Action, State } from '../state/store';
 import { ChunkyButton, Icon, sink } from '../components/ui';
 import { DrawnIcon } from '../components/DrawnIcon';
@@ -16,6 +17,7 @@ const MARK = require('../../assets/logo-mark.png');
 
 export function OnboardingScreen({ state, dispatch }: { state: State; dispatch: (action: Action) => void }) {
   const insets = useSafeAreaInsets();
+  const { t } = useText();
   const slide = onboardingSlides[state.onboardingIndex] ?? onboardingSlides[0]!;
   const last = state.onboardingIndex === onboardingSlides.length - 1;
 
@@ -49,7 +51,7 @@ export function OnboardingScreen({ state, dispatch }: { state: State; dispatch: 
       </View>
 
       <ChunkyButton
-        label={last ? 'Get started' : 'Next'}
+        label={last ? t('onboarding.start') : t('onboarding.next')}
         onPress={() => dispatch({ type: 'NEXT_ONBOARDING' })}
         style={{ alignSelf: 'stretch' }}
       />
@@ -61,7 +63,7 @@ export function OnboardingScreen({ state, dispatch }: { state: State; dispatch: 
         }}
         style={styles.ghostLink}
       >
-        <Text style={styles.ghostLinkText}>I already have an account</Text>
+        <Text style={styles.ghostLinkText}>{t('auth.iHaveAccount')}</Text>
       </Pressable>
     </View>
   );
@@ -77,6 +79,7 @@ export function AuthScreen({
   onAuthenticated: (session: Session) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { t } = useText();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -112,7 +115,7 @@ export function AuthScreen({
         // to the intake here is what made it flash past returning learners.
         onAuthenticated(session);
       } else {
-        setStatus('Check your inbox to confirm the sign-up, then log in.');
+        setStatus(t('auth.checkInbox'));
       }
     } catch (authError) {
       setError(getErrorMessage(authError));
@@ -132,10 +135,10 @@ export function AuthScreen({
           <Text style={styles.brandText}>PyLearn</Text>
         </View>
 
-        <Text style={styles.authTitleCentered}>{login ? 'Welcome back!' : 'Create your profile'}</Text>
-        <Text style={styles.authSub}>
-          {login ? 'Pick your streak up where you left it.' : 'An account keeps your streak and XP safe.'}
+        <Text style={styles.authTitleCentered}>
+          {login ? t('auth.welcomeBack') : t('auth.createProfile')}
         </Text>
+        <Text style={styles.authSub}>{login ? t('auth.subLogin') : t('auth.subRegister')}</Text>
 
         <View style={styles.modeTabs}>
           {(['login', 'register'] as const).map((mode) => (
@@ -145,7 +148,7 @@ export function AuthScreen({
               style={[styles.modeTab, state.authMode === mode ? styles.modeTabActive : null]}
             >
               <Text style={[styles.modeTabText, state.authMode === mode ? styles.modeTabTextActive : null]}>
-                {mode === 'login' ? 'Log in' : 'Sign up'}
+                {mode === 'login' ? t('auth.logIn') : t('auth.signUp')}
               </Text>
             </Pressable>
           ))}
@@ -163,7 +166,7 @@ export function AuthScreen({
               onBlur={() => setFocused(null)}
               onChangeText={setName}
               onFocus={() => setFocused('name')}
-              placeholder="Username"
+              placeholder={t('auth.username')}
               placeholderTextColor={color.outline}
               style={styles.fieldInput}
               value={name}
@@ -180,7 +183,7 @@ export function AuthScreen({
             onBlur={() => setFocused(null)}
             onChangeText={setEmail}
             onFocus={() => setFocused('email')}
-            placeholder="Email"
+            placeholder={t('auth.email')}
             placeholderTextColor={color.outline}
             style={styles.fieldInput}
             value={email}
@@ -194,7 +197,7 @@ export function AuthScreen({
             onBlur={() => setFocused(null)}
             onChangeText={setPassword}
             onFocus={() => setFocused('password')}
-            placeholder="Password"
+            placeholder={t('auth.password')}
             placeholderTextColor={color.outline}
             secureTextEntry={!reveal}
             style={styles.fieldInput}
@@ -223,14 +226,14 @@ export function AuthScreen({
 
         <ChunkyButton
           disabled={!canSubmit}
-          label={busy ? 'Connecting...' : 'Continue'}
+          label={busy ? t('auth.connecting') : t('auth.continue')}
           onPress={() => void submit()}
         />
 
         {/* The rule only earns its place once it is being broken; the rest of the
             time the footer belongs to the way across to the other mode. */}
         {!login && password.length > 0 && password.length < 6 ? (
-          <Text style={styles.authFoot}>Password needs at least 6 characters.</Text>
+          <Text style={styles.authFoot}>{t('auth.passwordRule')}</Text>
         ) : null}
 
         <Pressable
@@ -240,8 +243,10 @@ export function AuthScreen({
           onPress={() => dispatch({ type: 'SET_AUTH_MODE', mode: login ? 'register' : 'login' })}
         >
           <Text style={styles.authFoot}>
-            {login ? 'New here? ' : 'Already have an account? '}
-            <Text style={styles.authFootLink}>{login ? 'Create an account' : 'Log in'}</Text>
+            {login ? t('auth.newHere') : t('auth.haveAccount')}
+            <Text style={styles.authFootLink}>
+              {login ? t('auth.createAccount') : t('auth.logIn')}
+            </Text>
           </Text>
         </Pressable>
       </ScrollView>

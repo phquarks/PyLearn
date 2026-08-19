@@ -6,6 +6,7 @@ import { buyHearts, getErrorMessage } from '../api/progress';
 import { HEART_REFILL_PRICE } from '../data/cosmetics';
 import { FREE_UNITS, units } from '../data/lessons';
 import { ChunkyButton, Icon, Note } from '../components/ui';
+import { useText } from '../i18n/useText';
 import type { Action, State } from '../state/store';
 import { color, radius, space, type } from '../theme';
 
@@ -42,6 +43,7 @@ export function NoHeartsScreen({
   onRefreshed: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { t } = useText();
   const [now, setNow] = useState(Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -86,11 +88,9 @@ export function NoHeartsScreen({
         <Icon name="favorite-border" size={46} tint={color.error} />
       </View>
 
-      <Text style={styles.title}>Out of hearts</Text>
+      <Text style={styles.title}>{t('hearts.title')}</Text>
       <Text style={styles.text}>
-        {left
-          ? 'One comes back every half hour. The next is on its way.'
-          : 'A heart should be back by now — checking.'}
+        {left ? t('hearts.waiting') : t('hearts.checking')}
       </Text>
 
       {left ? (
@@ -106,25 +106,25 @@ export function NoHeartsScreen({
         <ChunkyButton
           disabled={!canAfford || busy}
           icon="favorite"
-          label={busy ? 'Buying...' : `Refill for ${HEART_REFILL_PRICE} gems`}
+          label={busy ? t('hearts.buying') : t('hearts.refill', { price: HEART_REFILL_PRICE })}
           onPress={() => void refill()}
           style={{ alignSelf: 'stretch' }}
         />
         {canAfford ? null : (
           <Text style={styles.hint}>
-            You have {state.gems} of the {HEART_REFILL_PRICE} gems a refill costs.
+            {t('hearts.short', { have: state.gems, price: HEART_REFILL_PRICE })}
           </Text>
         )}
 
         <ChunkyButton
           icon="school"
-          label="Practise for free"
+          label={t('hearts.practise')}
           onPress={() => dispatch({ type: 'GO_TO', screen: 'home' })}
           style={{ alignSelf: 'stretch' }}
           tone="ghost"
         />
         <Text style={styles.hint}>
-          {freeUnitNames} cost no hearts, so you can keep going there while these come back.
+          {t('hearts.freeUnits', { units: freeUnitNames })}
         </Text>
       </View>
     </View>

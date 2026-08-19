@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getErrorMessage } from '../api/progress';
 import { setPin } from '../api/security';
 import { PinPad } from '../components/PinPad';
+import { useText } from '../i18n/useText';
 import { color, space, type } from '../theme';
 
 const MARK = require('../../assets/logo-mark.png');
@@ -19,8 +20,17 @@ type Step = 'enter' | 'confirm';
  * mind here would be sealed in, since the profile that holds sign-out sits on
  * the far side of this very gate.
  */
-export function PinSetupScreen({ onDone, onLogOut }: { onDone: () => void; onLogOut: () => void }) {
+export function PinSetupScreen({
+  userId,
+  onDone,
+  onLogOut,
+}: {
+  userId: string;
+  onDone: () => void;
+  onLogOut: () => void;
+}) {
   const insets = useSafeAreaInsets();
+  const { t } = useText();
   const [step, setStep] = useState<Step>('enter');
   const [firstEntry, setFirstEntry] = useState('');
   const [error, setError] = useState('');
@@ -39,14 +49,14 @@ export function PinSetupScreen({ onDone, onLogOut }: { onDone: () => void; onLog
 
     if (pin !== firstEntry) {
       setFirstEntry('');
-      setError('Those did not match. Start again.');
+      setError(t('pin.mismatch'));
       setRound((value) => value + 1);
       setStep('enter');
       return;
     }
 
     try {
-      await setPin(pin);
+      await setPin(userId, pin);
       onDone();
     } catch (saveError) {
       setError(getErrorMessage(saveError));
@@ -65,12 +75,8 @@ export function PinSetupScreen({ onDone, onLogOut }: { onDone: () => void; onLog
         error={error}
         onComplete={(pin) => void entered(pin)}
         resetKey={round}
-        subtitle={
-          step === 'enter'
-            ? 'Four digits, asked for each time you open the app. You will type them twice.'
-            : 'Type the same four digits once more.'
-        }
-        title={step === 'enter' ? 'Protect your progress' : 'Confirm your PIN'}
+        subtitle={step === 'enter' ? t('pin.protectSub') : t('pin.confirmSub')}
+        title={step === 'enter' ? t('pin.protect') : t('pin.confirm')}
       />
 
 
@@ -80,7 +86,7 @@ export function PinSetupScreen({ onDone, onLogOut }: { onDone: () => void; onLog
       </View>
 
       <Pressable hitSlop={10} onPress={onLogOut} style={styles.out}>
-        <Text style={styles.outText}>Log out instead</Text>
+        <Text style={styles.outText}>{t('pin.logOutInstead')}</Text>
       </Pressable>
     </View>
   );

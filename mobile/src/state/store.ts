@@ -43,6 +43,9 @@ export type State = {
   avatarUrl: string;
   /** an admin removed this profile's name and picture from what others see */
   profileHidden: boolean;
+  /** set by an admin; the server refuses this account regardless of the app */
+  blocked: boolean;
+  blockedReason: string;
   remindersOn: boolean;
   /** times of day as "HH:MM", sorted; several a day is allowed */
   reminderTimes: string[];
@@ -108,6 +111,8 @@ export type Action =
         snakeTrail: string;
         avatarUrl: string;
         profileHidden: boolean;
+        blocked: boolean;
+        blockedReason: string;
         completedLessons: number[];
         profileStartedAt?: string;
         displayName?: string;
@@ -135,6 +140,8 @@ export const initialState: State = {
   avatarUri: '',
   avatarUrl: '',
   profileHidden: false,
+  blocked: false,
+  blockedReason: '',
   remindersOn: false,
   reminderTimes: ['19:00'],
   remindersAnswered: false,

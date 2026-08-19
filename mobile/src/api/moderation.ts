@@ -47,6 +47,27 @@ export async function showProfile(email: string): Promise<string> {
   return String(data ?? email);
 }
 
+export async function blockAccount(email: string, reason: string): Promise<string> {
+  const { data, error } = await supabase.rpc('admin_block_account', {
+    target_email: email.trim(),
+    reason: reason.trim() || null,
+  });
+
+  if (error) throw error;
+
+  return String(data ?? email);
+}
+
+export async function unblockAccount(email: string): Promise<string> {
+  const { data, error } = await supabase.rpc('admin_unblock_account', {
+    target_email: email.trim(),
+  });
+
+  if (error) throw error;
+
+  return String(data ?? email);
+}
+
 export async function hideProfile(email: string): Promise<string> {
   const { data, error } = await supabase.rpc('admin_hide_profile', { target_email: email.trim() });
 

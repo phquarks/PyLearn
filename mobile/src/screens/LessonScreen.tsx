@@ -4,12 +4,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { color, edge, radius, space, type } from '../theme';
 import { lessons, type Question } from '../data/lessons';
+import { useText } from '../i18n/useText';
 import type { Action, State } from '../state/store';
 import { ChunkyButton, Icon, sink } from '../components/ui';
 
 const MARK = require('../../assets/logo-mark.png');
 
 export function LessonScreen({ state, dispatch }: { state: State; dispatch: (action: Action) => void }) {
+  const { t } = useText();
   const insets = useSafeAreaInsets();
   const session = state.lesson;
   const lesson = lessons.find((item) => item.id === session?.lessonId);
@@ -30,7 +32,7 @@ export function LessonScreen({ state, dispatch }: { state: State; dispatch: (act
   if (!session || !lesson || !question) {
     return (
       <View style={[styles.screen, styles.empty]}>
-        <ChunkyButton label="Back to the path" onPress={() => dispatch({ type: 'GO_TO', screen: 'home' })} />
+        <ChunkyButton label={t('result.back')} onPress={() => dispatch({ type: 'GO_TO', screen: 'home' })} />
       </View>
     );
   }
@@ -43,7 +45,7 @@ export function LessonScreen({ state, dispatch }: { state: State; dispatch: (act
     <View style={styles.screen}>
       <View style={[styles.top, { paddingTop: insets.top, height: 68 + insets.top }]}>
         <Pressable
-          accessibilityLabel="Quit lesson"
+          accessibilityLabel={t('result.back')}
           accessibilityRole="button"
           onPress={() => dispatch({ type: 'GO_TO', screen: 'home' })}
           style={styles.iconButton}
@@ -119,14 +121,14 @@ export function LessonScreen({ state, dispatch }: { state: State; dispatch: (act
             {question.explanation}
           </Text>
           <ChunkyButton
-            label="Continue"
+            label={t('lesson.continue')}
             onPress={() => dispatch({ type: 'CONTINUE_LESSON' })}
             tone={session.isCorrect ? 'primary' : 'danger'}
           />
         </View>
       ) : (
         <View style={[styles.actionBar, { paddingBottom: insets.bottom + 20 }]}>
-          <ChunkyButton disabled={!canCheck} label="Check" onPress={() => dispatch({ type: 'CHECK_ANSWER' })} />
+          <ChunkyButton disabled={!canCheck} label={t('lesson.check')} onPress={() => dispatch({ type: 'CHECK_ANSWER' })} />
         </View>
       )}
     </View>
@@ -144,6 +146,8 @@ function QuestionInput({
   answered: boolean;
   dispatch: (action: Action) => void;
 }) {
+  const { t } = useText();
+
   if (question.type === 'blocks') {
     const picked = Array.isArray(selected) ? selected : [];
 
@@ -162,7 +166,7 @@ function QuestionInput({
               </Pressable>
             ))
           ) : (
-            <Text style={styles.dropzoneEmpty}>Tap the blocks below to build the line</Text>
+            <Text style={styles.dropzoneEmpty}>{t('lesson.buildHint')}</Text>
           )}
         </View>
 

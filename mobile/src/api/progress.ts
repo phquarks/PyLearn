@@ -18,6 +18,8 @@ export type LearningProgress = {
   snake_trail: string;
   avatar_url: string | null;
   profile_hidden: boolean;
+  blocked_at: string | null;
+  blocked_reason: string | null;
   started_at?: string;
   updated_at?: string;
 };
@@ -36,7 +38,7 @@ const CORE_COLUMNS =
 
 /** added by the gems migration; kept separate so their absence can be detected */
 const SHOP_COLUMNS =
-  'gems, owned_items, snake_skin, snake_hat, snake_trail, avatar_url, profile_hidden';
+  'gems, owned_items, snake_skin, snake_hat, snake_trail, avatar_url, profile_hidden, blocked_at, blocked_reason';
 
 /**
  * Postgres and PostgREST both complain about an unknown column, with different
@@ -61,6 +63,8 @@ const SHOP_DEFAULTS = {
   snake_trail: 'plain',
   avatar_url: null as string | null,
   profile_hidden: false,
+  blocked_at: null as string | null,
+  blocked_reason: null as string | null,
 };
 
 export async function getLearningProgress(userId: string): Promise<LearningProgress | null> {
@@ -85,6 +89,34 @@ export async function getLearningProgress(userId: string): Promise<LearningProgr
   return data as LearningProgress | null;
 }
 
+/** the fields a client is allowed to own; everything else is the server's */
+export type ProfilePatch = Partial<
+  Pick<
+    LearningProgress,
+    'display_name' | 'goal' | 'experience' | 'language' | 'snake_skin' | 'snake_hat' | 'snake_trail' | 'avatar_url'
+  >
+>;
+
+/**
+ * Writes only what changed.
+ *
+ * Sending the whole row made the last writer win: open the app on a second
+ * device and it would post its stale copy over everything the first one had
+ * just changed. A patch touches nothing it was not asked to.
+ */
+export async function patchLearningProgress(userId: string, patch: ProfilePatch): Promise<void> {
+  if (Object.keys(patch).length === 0) return;
+
+  const { error } = await supabase
+    .from('learning_profiles')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('user_id', userId);
+
+  if (error) {
+    throw error;
+  }
+}
+
 export async function upsertLearningProgress(progress: LearningProgress): Promise<void> {
   /* xp, gems, streak, completed_lessons and owned_items are decided by the
      server now. A trigger discards them on the way in, so sending them would be
@@ -102,7 +134,7 @@ export async function upsertLearningProgress(progress: LearningProgress): Promis
     /* Rather than losing the whole save over the shop fields, drop them and
        write the rest. Gems bought on this device stay on this device until the
        migration lands, which beats XP and lessons silently failing to save. */
-    const { snake_skin, snake_hat, snake_trail, avatar_url, profile_hidden, ...core } = row;
+    const { snake_skin, snake_hat, snake_trail, avatar_url, profile_hidden, blocked_at, blocked_reason, ...core } = row;
     const retry = await write(core);
 
     if (retry.error) {
@@ -230,6 +262,22 @@ export async function loseHeart(): Promise<HeartState> {
   return row as HeartState;
 }
 
+/**
+ * The prices the shop will actually charge.
+ *
+ * The catalogue in the app carries a price too, but only as a fallback for the
+ * first render and for being offline: the database is what takes the gems, so
+ * it is the one that decides. Showing one number and charging another is the
+ * failure this removes.
+ */
+export async function getShopPrices(): Promise<Record<string, number>> {
+  const { data, error } = await supabase.from('shop_items').select('id, price');
+
+  if (error || !data) return {};
+
+  return Object.fromEntries((data as { id: string; price: number }[]).map((row) => [row.id, row.price]));
+}
+
 export type PurchaseResult = { gems: number; owned_items: string[] };
 
 export async function purchaseItem(itemId: string): Promise<PurchaseResult> {
@@ -285,14 +333,39 @@ export async function getLeaderboard(limit = 20): Promise<LeaderboardRow[]> {
   return (data ?? []) as LeaderboardRow[];
 }
 
+/**
+ * A message a person can act on.
+ *
+ * Supabase throws plain objects, not Error instances — a PostgrestError is
+ * `{ message, details, hint, code }` and nothing more. An `instanceof Error`
+ * check therefore misses every database error there is, which is how a real
+ * explanation ("Not enough gems", "No account with that email") was being
+ * replaced by a shrug.
+ */
 export function getErrorMessage(error: unknown): string {
   if (error instanceof TypeError && error.message.toLowerCase().includes('fetch')) {
-    return 'Cannot reach Supabase. Check EXPO_PUBLIC_SUPABASE_URL in mobile/.env.';
+    return 'No connection. This will sync once you are back online.';
   }
 
-  if (error instanceof Error) {
-    return error.message;
+  if (typeof error === 'string' && error.trim()) {
+    return error;
   }
 
-  return 'Please try again.';
+  if (error && typeof error === 'object') {
+    const shape = error as { message?: unknown; hint?: unknown; details?: unknown; code?: unknown };
+    const message = typeof shape.message === 'string' ? shape.message.trim() : '';
+    // the hint is where Postgres puts the useful half of a constraint failure
+    const hint = typeof shape.hint === 'string' ? shape.hint.trim() : '';
+
+    if (message) {
+      return hint && hint !== message ? `${message} (${hint})` : message;
+    }
+
+    const details = typeof shape.details === 'string' ? shape.details.trim() : '';
+    if (details) return details;
+
+    if (shape.code) return `Something went wrong (${String(shape.code)}).`;
+  }
+
+  return 'Something went wrong. Please try again.';
 }

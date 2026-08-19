@@ -6,6 +6,7 @@ import { color, edge, radius, space, type } from '../theme';
 import { lessons, unitDone, units } from '../data/lessons';
 import { reportProfile } from '../api/moderation';
 import { dayBefore, getErrorMessage, today, type ActivityDay, type LeaderboardRow } from '../api/progress';
+import { useText } from '../i18n/useText';
 import type { Action, State } from '../state/store';
 import { ChunkyButton, Icon, Note, sink } from '../components/ui';
 
@@ -31,6 +32,7 @@ export function ResultScreen({
   onEnableReminders: (wanted: boolean) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { t } = useText();
   const result = state.lastResult;
   // the reward is the server's answer, so there is a moment before it arrives
   const waiting = state.pendingAward !== null;
@@ -44,23 +46,25 @@ export function ResultScreen({
       <View style={styles.resultMark}>
         <Image source={MARK} style={{ width: 96, height: 115 }} />
       </View>
-      <Text style={styles.display}>Lesson complete!</Text>
+      <Text style={styles.display}>{t('result.title')}</Text>
       <Text style={styles.sub}>
-        {(waiting ? state.pendingAward?.title : result?.title) ?? 'Python Basics'} just got closer.
+        {t('result.sub', {
+          lesson: (waiting ? state.pendingAward?.title : result?.title) ?? 'Python Basics',
+        })}
       </Text>
 
       <View style={styles.resultGrid}>
         <View style={styles.statCard}>
           <Icon name="diamond" size={26} tint={color.tertiary} />
           <Text style={styles.statValue}>{waiting ? '···' : `+${result?.xp ?? 0}`}</Text>
-          <Text style={styles.statLabel}>XP earned</Text>
+          <Text style={styles.statLabel}>{t('result.xp')}</Text>
         </View>
         <View style={styles.statCard}>
           <Icon name="track-changes" size={26} tint={color.primary} />
           <Text style={styles.statValue}>
             {(waiting ? state.pendingAward?.accuracy : result?.accuracy) ?? 0}%
           </Text>
-          <Text style={styles.statLabel}>accuracy</Text>
+          <Text style={styles.statLabel}>{t('result.accuracy')}</Text>
         </View>
       </View>
 
@@ -68,19 +72,19 @@ export function ResultScreen({
 
       {offerReminders ? (
         <View style={styles.offer}>
-          <Text style={styles.offerTitle}>Keep this going?</Text>
+          <Text style={styles.offerTitle}>{t('result.remindTitle')}</Text>
           <Text style={styles.offerText}>
-            Reminders at times you pick — and never on a day you have already practised.
+            {t('result.remindText')}
           </Text>
           <View style={styles.offerRow}>
             <ChunkyButton
               icon="notifications"
-              label="Remind me"
+              label={t('result.remindYes')}
               onPress={() => onEnableReminders(true)}
               style={{ flex: 1 }}
             />
             <ChunkyButton
-              label="No thanks"
+              label={t('result.remindNo')}
               onPress={() => onEnableReminders(false)}
               style={{ flex: 1 }}
               tone="ghost"
@@ -91,7 +95,7 @@ export function ResultScreen({
 
       <ChunkyButton
         disabled={waiting}
-        label={waiting ? 'Saving...' : 'Back to the path'}
+        label={waiting ? t('result.saving') : t('result.back')}
         onPress={() => dispatch({ type: 'GO_TO', screen: 'home' })}
         style={{ alignSelf: 'stretch', marginTop: space.md }}
       />
@@ -101,6 +105,7 @@ export function ResultScreen({
 
 export function ProgressScreen({ state, activity }: { state: State; activity: ActivityDay[] }) {
   const pad = useScrollPadding();
+  const { t } = useText();
 
   // the last seven calendar days, oldest first, filled in from the day log
   const earned = new Map(activity.map((row) => [row.day, row.xp]));
@@ -119,9 +124,13 @@ export function ProgressScreen({ state, activity }: { state: State; activity: Ac
 
   return (
     <ScrollView contentContainerStyle={pad} style={styles.screen}>
-      <Text style={styles.display}>Progress</Text>
+      <Text style={styles.display}>{t('progress.title')}</Text>
       <Text style={styles.sub}>
-        {state.completedLessons.length} of {lessons.length} lessons completed · {weekTotal} XP this week
+        {t('progress.sub', {
+          done: state.completedLessons.length,
+          total: lessons.length,
+          xp: weekTotal,
+        })}
       </Text>
 
       <View style={styles.chart}>
@@ -146,7 +155,7 @@ export function ProgressScreen({ state, activity }: { state: State; activity: Ac
         ))}
       </View>
 
-      <Text style={styles.sectionHead}>Topics</Text>
+      <Text style={styles.sectionHead}>{t('progress.topics')}</Text>
       {units.map((unit) => {
         const done = unitDone(unit, state.completedLessons);
 
@@ -165,7 +174,7 @@ export function ProgressScreen({ state, activity }: { state: State; activity: Ac
                 <Icon name={lesson.icon} size={24} tint={color.onSurfaceVariant} />
                 <Text style={styles.rowName}>{lesson.title}</Text>
                 <Text style={styles.rowValue}>
-                  {state.completedLessons.includes(lesson.id) ? 'Done' : 'Ahead'}
+                  {state.completedLessons.includes(lesson.id) ? t('progress.done') : t('progress.ahead')}
                 </Text>
               </View>
             ))}
@@ -186,6 +195,7 @@ export function LeagueScreen({
   error: string;
 }) {
   const pad = useScrollPadding();
+  const { t } = useText();
   const [openRow, setOpenRow] = useState('');
   const [note, setNote] = useState('');
   const [actionError, setActionError] = useState('');
@@ -196,7 +206,7 @@ export function LeagueScreen({
     try {
       await reportProfile(target, 'Reported from the leaderboard');
       setOpenRow('');
-      setNote(`Thanks — ${name} has been sent for review. They stay on the board until an admin looks.`);
+      setNote(t('league.reported', { name }));
     } catch (reportError) {
       setActionError(getErrorMessage(reportError));
     }
@@ -214,8 +224,8 @@ export function LeagueScreen({
         <View style={styles.trophy}>
           <Icon name="emoji-events" size={36} tint={color.onSecondaryFixed} />
         </View>
-        <Text style={styles.display}>Leaderboard</Text>
-        <Text style={[styles.sub, { textAlign: 'center' }]}>Everyone learning Python here, ranked by XP.</Text>
+        <Text style={styles.display}>{t('league.title')}</Text>
+        <Text style={[styles.sub, { textAlign: 'center' }]}>{t('league.sub')}</Text>
       </View>
 
       {error ? <Note>{error}</Note> : null}
@@ -223,11 +233,11 @@ export function LeagueScreen({
       {actionError ? <Note tone="error">{actionError}</Note> : null}
 
       {!error && board.length === 0 ? (
-        <Note>Nobody has earned XP yet. Finish a lesson and you will be first on the board.</Note>
+        <Note>{t('league.empty')}</Note>
       ) : null}
 
       {board.length === 1 ? (
-        <Note>You are the only learner here so far. The board fills up as other people sign up.</Note>
+        <Note>{t('league.alone')}</Note>
       ) : null}
 
       <View style={{ gap: 10 }}>
@@ -251,9 +261,9 @@ export function LeagueScreen({
                   )}
                 </View>
                 <Text numberOfLines={1} style={styles.rowName}>
-                  {isMe ? `${row.name} (you)` : row.name}
+                  {isMe ? t('league.you', { name: row.name }) : row.name}
                 </Text>
-                <Text style={styles.rowValue}>{row.xp} XP</Text>
+                <Text style={styles.rowValue}>{t('league.xp', { xp: row.xp })}</Text>
 
                 {/* nothing to report about yourself */}
                 {isMe ? null : (
@@ -271,7 +281,7 @@ export function LeagueScreen({
               {openRow === row.user_id ? (
                 <View style={styles.rowActions}>
                   <Pressable hitSlop={6} onPress={() => void report(row.user_id, row.name)}>
-                    <Text style={styles.rowAction}>Report this name or picture</Text>
+                    <Text style={styles.rowAction}>{t('league.report')}</Text>
                   </Pressable>
                 </View>
               ) : null}
@@ -298,6 +308,7 @@ export function ProfileScreen({
   isAdmin: boolean;
 }) {
   const pad = useScrollPadding();
+  const { t } = useText();
   const badges: [string, string, boolean][] = [
     ['local-fire-department', `${state.streak}-day streak`, state.streak > 0],
     ['inventory-2', 'Variables', state.completedLessons.includes(1)],
@@ -312,28 +323,32 @@ export function ProfileScreen({
       {state.queuedLessons > 0 ? (
         <Note>
           {state.queuedLessons === 1
-            ? 'One finished lesson is waiting for a connection.'
-            : `${state.queuedLessons} finished lessons are waiting for a connection.`}
+            ? t('profile.waitingOne')
+            : t('profile.waitingMany', { count: state.queuedLessons })}
         </Note>
       ) : null}
 
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
-          {state.avatarUri ? (
-            <Image source={{ uri: state.avatarUri }} style={styles.avatarImage} />
+          {/* the local copy is a cache and is cleared on sign-out; the uploaded
+              one belongs to the account and survives switching away and back */}
+          {state.avatarUri || state.avatarUrl ? (
+            <Image source={{ uri: state.avatarUri || state.avatarUrl }} style={styles.avatarImage} />
           ) : (
             <Image source={MARK} style={{ width: 64, height: 77 }} />
           )}
         </View>
-        <Text style={styles.profileName}>{state.displayName.trim() || 'Add your name'}</Text>
+        <Text style={styles.profileName}>{state.displayName.trim() || t('profile.addName')}</Text>
         <Text style={styles.profileMeta}>{userEmail}</Text>
         <Text style={styles.profileMeta}>
-          Learning since {new Date(state.profileStartedAt).toLocaleDateString('en-US')}
+          {t('profile.since', {
+            date: new Date(state.profileStartedAt).toLocaleDateString(),
+          })}
         </Text>
 
         <ChunkyButton
           icon="edit"
-          label="Edit profile"
+          label={t('profile.edit')}
           onPress={() => dispatch({ type: 'GO_TO', screen: 'editProfile' })}
           style={{ alignSelf: 'stretch', marginTop: space.sm }}
           tone="ghost"
@@ -342,7 +357,7 @@ export function ProfileScreen({
         {isAdmin ? (
           <ChunkyButton
             icon="admin-panel-settings"
-            label="Admin tools"
+            label={t('profile.admin')}
             onPress={() => dispatch({ type: 'GO_TO', screen: 'admin' })}
             style={{ alignSelf: 'stretch', marginTop: 10 }}
             tone="tertiary"
@@ -352,9 +367,9 @@ export function ProfileScreen({
 
       <View style={styles.statsRow}>
         {[
-          [state.streak, 'streak'],
-          [state.xp, 'XP'],
-          [state.completedLessons.length, 'lessons'],
+          [state.streak, t('profile.streak')],
+          [state.xp, t('profile.xp')],
+          [state.completedLessons.length, t('profile.lessons')],
         ].map(([value, label]) => (
           <View key={String(label)} style={[styles.statCard, { flex: 1 }]}>
             <Text style={styles.statValue}>{value}</Text>
@@ -363,7 +378,7 @@ export function ProfileScreen({
         ))}
       </View>
 
-      <Text style={styles.sectionHead}>Achievements</Text>
+      <Text style={styles.sectionHead}>{t('profile.achievements')}</Text>
       <View style={styles.badges}>
         {badges.map(([icon, title, earned]) => (
           <View key={title} style={[styles.badge, earned ? null : styles.badgeLocked]}>
@@ -377,7 +392,7 @@ export function ProfileScreen({
         ))}
       </View>
 
-      <ChunkyButton icon="logout" label="Log out" onPress={onSignOut} tone="danger" />
+      <ChunkyButton icon="logout" label={t('profile.signOut')} onPress={onSignOut} tone="danger" />
     </ScrollView>
   );
 }

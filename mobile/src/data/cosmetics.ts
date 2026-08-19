@@ -20,6 +20,11 @@ export type Cosmetic = {
   swatch: string;
   /** MaterialIcons glyph for hats and trails, which are not colour alone */
   icon?: string;
+  /**
+   * A fallback only. The database holds the price that is charged; this is what
+   * the shop shows before that arrives, and while offline. When the two differ
+   * the fetched one wins — see getShopPrices.
+   */
   price: number;
 };
 
