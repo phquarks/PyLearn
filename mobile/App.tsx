@@ -14,6 +14,16 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getCurrentSession, signOut, subscribeToAuthChanges } from './src/api/auth';
 import { clearAvatar, getAvatar, uploadExistingAvatar } from './src/api/avatar';
 import { isAdmin } from './src/api/admin';
+import { clearQueue, flushQueue, queueLesson, readQueue } from './src/api/offline';
+import {
+  askPermission,
+  clearReminders,
+  getReminderSettings,
+  remindersAnswered,
+  saveReminderSettings,
+  scheduleReminders,
+  tidyTimes,
+} from './src/api/reminders';
 import { clearPin, hasPin } from './src/api/security';
 import {
   getActivity,
@@ -22,6 +32,7 @@ import {
   completeLesson,
   getGems,
   heartState,
+  today,
   loseHeart,
   getLeaderboard,
   upsertLearningProgress,
@@ -71,6 +82,9 @@ export default function App() {
      see the current values without being torn down and rebuilt by them. */
   const gemsNow = useRef(state.gems);
   const savePending = useRef(false);
+  /* The row a failed save was carrying. Kept so the attempt can be repeated:
+     without it a name changed offline waits for the next unrelated edit. */
+  const unsavedRow = useRef<Parameters<typeof upsertLearningProgress>[0] | null>(null);
   const userId = session?.user.id;
 
   // restore a stored session, then follow sign-in and sign-out
@@ -104,6 +118,11 @@ export default function App() {
 
     void getAvatar().then((uri) => {
       if (alive && uri) dispatch({ type: 'SET_AVATAR', uri });
+    });
+
+    void Promise.all([getReminderSettings(), remindersAnswered()]).then(([settings, answered]) => {
+      if (!alive) return;
+      dispatch({ type: 'SET_REMINDERS', on: settings.on, times: settings.times, answered });
     });
 
     return () => {
@@ -204,7 +223,7 @@ export default function App() {
 
     savePending.current = true;
     saveTimer.current = setTimeout(() => {
-      upsertLearningProgress({
+      const row = {
         user_id: userId,
         display_name: state.displayName || null,
         goal: state.goal || null,
@@ -221,8 +240,14 @@ export default function App() {
         avatar_url: state.avatarUrl || null,
         profile_hidden: state.profileHidden,
         completed_lessons: state.completedLessons,
-      })
+      };
+
+      upsertLearningProgress(row)
+        .then(() => {
+          unsavedRow.current = null;
+        })
         .catch((error) => {
+          unsavedRow.current = row;
           dispatch({ type: 'SET_SYNC_MESSAGE', message: `Could not save progress: ${getErrorMessage(error)}` });
         })
         .finally(() => {
@@ -347,6 +372,36 @@ export default function App() {
       .catch(() => undefined);
   }, [userId, progressReady, state.avatarUri, state.avatarUrl, state.profileHidden]);
 
+  /* The queue is rebuilt from the streak and from whether today is already done.
+     Both change when a lesson is finished, which is exactly when today's
+     reminder should stop being scheduled. */
+  const practisedToday = activity.some((entry) => entry.day === today() && entry.lessons > 0);
+
+  useEffect(() => {
+    if (!state.remindersOn) return;
+
+    void scheduleReminders(
+      { on: true, times: state.reminderTimes },
+      state.streak,
+      practisedToday,
+    ).catch(() => undefined);
+    // the joined string keeps the effect from re-running on an identical array
+  }, [state.remindersOn, state.reminderTimes.join(','), state.streak, practisedToday]);
+
+  const setReminders = useCallback(async (on: boolean, times: string[]) => {
+    // permission is asked only when switching on, and a refusal is taken as a no
+    const allowed = on ? await askPermission() : false;
+    const settled = on && allowed;
+    const tidy = tidyTimes(times);
+
+    await saveReminderSettings({ on: settled, times: tidy });
+    dispatch({ type: 'SET_REMINDERS', on: settled, times: tidy, answered: true });
+
+    if (!settled) {
+      await scheduleReminders({ on: false, times: tidy }, 0, true).catch(() => undefined);
+    }
+  }, []);
+
   const refreshHearts = useCallback(async () => {
     try {
       const state = await heartState();
@@ -399,9 +454,9 @@ export default function App() {
   }, [state.screen, state.hearts, state.lesson]);
 
   /* A finished run is reported to the server, which decides what it was worth
-     and hands back the new totals. The day log and the streak are updated in
-     the same call, so there is no read-then-write for a second device to slip
-     between. */
+     and hands back the new totals. When the call cannot be made the run is
+     written to disk instead and awarded provisionally, so a lesson done without
+     signal is still a lesson done. */
   useEffect(() => {
     const pending = state.pendingAward;
 
@@ -427,13 +482,83 @@ export default function App() {
         return refreshActivity(userId);
       })
       .then(() => refreshBoard())
-      .catch((error) => {
+      .catch(async () => {
+        await queueLesson({
+          lessonId: pending.lessonId,
+          correct: pending.correct,
+          total: pending.total,
+          day: today(),
+        });
+
+        const waiting = (await readQueue()).length;
+
+        dispatch({ type: 'QUEUE_AWARD', waiting });
         dispatch({
           type: 'SET_SYNC_MESSAGE',
-          message: `Could not record that lesson: ${getErrorMessage(error)}`,
+          message: 'Saved on this phone. It will sync when you are back online.',
         });
       });
   }, [state.pendingAward, userId, refreshActivity, refreshBoard]);
+
+  /* Draining the queue. Tried on start, on coming back to the app, and on a
+     slow timer while anything is waiting — there is no network event to listen
+     for without another dependency, and a lesson sitting unsent is worth a
+     request every half minute. */
+  const drain = useCallback(async () => {
+    if (!userId) return;
+
+    // the profile is retried alongside the lessons; both are waiting on the
+    // same thing, and there is no sense having two schedules for one network
+    if (unsavedRow.current) {
+      try {
+        await upsertLearningProgress(unsavedRow.current);
+        unsavedRow.current = null;
+      } catch {
+        /* still offline */
+      }
+    }
+
+    const outcome = await flushQueue();
+
+    if (outcome.award) {
+      dispatch({
+        type: 'APPLY_AWARD',
+        award: {
+          xp: outcome.award.xp,
+          gems: outcome.award.gems,
+          streak: outcome.award.streak,
+          completedLessons: outcome.award.completed_lessons ?? [],
+          awardedXp: outcome.award.awarded_xp,
+        },
+      });
+
+      await refreshActivity(userId).catch(() => undefined);
+      await refreshBoard();
+    }
+
+    dispatch({ type: 'SET_QUEUED', waiting: outcome.left });
+  }, [userId, refreshActivity, refreshBoard]);
+
+  useEffect(() => {
+    if (!userId || !progressReady) return;
+
+    void readQueue().then((queue) => dispatch({ type: 'SET_QUEUED', waiting: queue.length }));
+    void drain().catch(() => undefined);
+
+    const listener = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void drain().catch(() => undefined);
+    });
+
+    return () => listener.remove();
+  }, [userId, progressReady, drain]);
+
+  useEffect(() => {
+    if (state.queuedLessons === 0) return;
+
+    const timer = setInterval(() => void drain().catch(() => undefined), 30000);
+
+    return () => clearInterval(timer);
+  }, [state.queuedLessons, drain]);
 
   // standings are stale the moment somebody else practises, so refetch on entry
   useEffect(() => {
@@ -479,6 +604,8 @@ export default function App() {
        and hand them somebody else's face. */
     await clearPin();
     await clearAvatar();
+    await clearReminders();
+    await clearQueue();
     setPinOn(false);
     setLocked(false);
     setProgressReady(false);
@@ -538,6 +665,8 @@ export default function App() {
             boardError={boardError}
             dispatch={dispatch}
             isAdminUser={admin}
+            onEnableReminders={(wanted) => void setReminders(wanted, state.reminderTimes)}
+            onReminders={(on, times) => void setReminders(on, times)}
             onHeartsRefresh={() => void refreshHearts()}
             onPinChanged={() => void refreshPinState()}
             onSignOut={() => void handleSignOut()}
@@ -564,6 +693,8 @@ function Router({
   onSignOut,
   onPinChanged,
   onHeartsRefresh,
+  onEnableReminders,
+  onReminders,
   isAdminUser,
   activity,
   board,
@@ -576,6 +707,8 @@ function Router({
   onSignOut: () => void;
   onPinChanged: () => void;
   onHeartsRefresh: () => void;
+  onEnableReminders: (wanted: boolean) => void;
+  onReminders: (on: boolean, times: string[]) => void;
   isAdminUser: boolean;
   activity: ActivityDay[];
   board: LeaderboardRow[];
@@ -618,7 +751,13 @@ function Router({
     case 'lesson':
       return <LessonScreen dispatch={dispatch} state={state} />;
     case 'result':
-      return <ResultScreen dispatch={dispatch} state={state} />;
+      return (
+        <ResultScreen
+          dispatch={dispatch}
+          onEnableReminders={onEnableReminders}
+          state={state}
+        />
+      );
     case 'progress':
       return <ProgressScreen activity={activity} state={state} />;
     case 'league':
@@ -644,6 +783,7 @@ function Router({
         <EditProfileScreen
           dispatch={dispatch}
           onDeleted={onSignOut}
+          onReminders={onReminders}
           onPinChanged={onPinChanged}
           state={state}
           userEmail={session?.user.email ?? ''}

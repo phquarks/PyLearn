@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, Switch, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { deleteAccount, updateEmail } from '../api/auth';
 import { clearAvatar, pickAvatar } from '../api/avatar';
 import { getErrorMessage } from '../api/progress';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
+import { formatTime, MAX_TIMES, parseTime } from '../api/reminders';
 import { hasPin, setPin } from '../api/security';
 import { PinPad } from '../components/PinPad';
 import { ChunkyButton, Icon, Note } from '../components/ui';
@@ -21,6 +24,7 @@ export function EditProfileScreen({
   dispatch,
   userEmail,
   userId,
+  onReminders,
   onDeleted,
   onPinChanged,
 }: {
@@ -28,6 +32,8 @@ export function EditProfileScreen({
   dispatch: (action: Action) => void;
   userEmail: string;
   userId: string;
+  /** saves the choice, asks the system for permission, rebuilds the queue */
+  onReminders: (on: boolean, times: string[]) => void;
   /** clears the local session state once the account is gone */
   onDeleted: () => void;
   /** lets App re-read whether a PIN exists, so the lock gate stays in step */
@@ -44,6 +50,7 @@ export function EditProfileScreen({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [addingTime, setAddingTime] = useState(false);
 
   useEffect(() => {
     void hasPin().then(setPinSet);
@@ -265,6 +272,94 @@ export function EditProfileScreen({
         />
 
 
+        <Text style={styles.sectionHead}>Daily reminder</Text>
+        <View style={styles.toggleRow}>
+          <Icon
+            name={state.remindersOn ? 'notifications-active' : 'notifications-off'}
+            size={22}
+            tint={state.remindersOn ? color.primary : color.outline}
+          />
+          <View style={styles.toggleText}>
+            <Text style={styles.pinState}>{state.remindersOn ? 'On' : 'Off'}</Text>
+            <Text style={styles.hint}>Never on a day you have already practised.</Text>
+          </View>
+          <Switch
+            onValueChange={(next) => onReminders(next, state.reminderTimes)}
+            thumbColor={color.surfaceLowest}
+            trackColor={{ false: color.surfaceHighest, true: color.primaryContainer }}
+            value={state.remindersOn}
+          />
+        </View>
+
+        {state.remindersOn ? (
+          <>
+            {state.reminderTimes.map((value) => (
+              <View key={value} style={styles.timeRow}>
+                <Icon name="schedule" size={20} tint={color.onSurfaceVariant} />
+                <Text style={styles.timeValue}>{value}</Text>
+                {/* the last one cannot go: reminders on with no time would be a
+                    switch that promises something and does nothing */}
+                {state.reminderTimes.length > 1 ? (
+                  <Pressable
+                    accessibilityLabel={`Remove the ${value} reminder`}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                    onPress={() =>
+                      onReminders(
+                        true,
+                        state.reminderTimes.filter((entry) => entry !== value),
+                      )
+                    }
+                  >
+                    <Icon name="close" size={20} tint={color.outline} />
+                  </Pressable>
+                ) : null}
+              </View>
+            ))}
+
+            {state.reminderTimes.length < MAX_TIMES ? (
+              <ChunkyButton
+                icon={addingTime ? 'check' : 'add'}
+                label={addingTime ? 'Done' : 'Add a time'}
+                onPress={() => setAddingTime((open) => !open)}
+                style={{ alignSelf: 'stretch', marginTop: 10 }}
+                tone="ghost"
+              />
+            ) : (
+              <Text style={styles.hint}>That is as many as one day gets.</Text>
+            )}
+
+            {addingTime ? (
+              <DateTimePicker
+                display="spinner"
+                mode="time"
+                onChange={(_event, picked) => {
+                  if (!picked) return;
+
+                  /* Saved on every turn of the wheel: the queue is cheap to
+                     rebuild, and duplicates are dropped when the list is tidied,
+                     so scrolling past a time already on the list costs nothing. */
+                  const value = formatTime(picked.getHours(), picked.getMinutes());
+                  onReminders(true, [...state.reminderTimes, value]);
+                }}
+                value={(() => {
+                  const last = parseTime(state.reminderTimes[state.reminderTimes.length - 1] ?? '');
+                  const at = new Date();
+                  at.setHours(last?.hour ?? 19, last?.minute ?? 0, 0, 0);
+
+                  return at;
+                })()}
+              />
+            ) : null}
+
+            <Text style={styles.hint}>
+              {state.reminderTimes.length === 1
+                ? 'One reminder a day.'
+                : `${state.reminderTimes.length} reminders a day, unless you have already practised.`}
+            </Text>
+          </>
+        ) : null}
+
         <Text style={styles.sectionHead}>Delete account</Text>
         {confirmingDelete ? (
           <>
@@ -384,5 +479,24 @@ const styles = StyleSheet.create({
     backgroundColor: color.surfaceLowest,
   },
   toggleText: { flex: 1 },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    minHeight: 56,
+    borderRadius: radius.base,
+    borderWidth: 2,
+    borderColor: color.surfaceHighest,
+    backgroundColor: color.surfaceLowest,
+  },
+  timeValue: {
+    ...type.title,
+    flex: 1,
+    fontSize: 20,
+    color: color.onSurface,
+    fontVariant: ['tabular-nums'],
+  },
   pinState: { ...type.label, color: color.onSurface },
 });

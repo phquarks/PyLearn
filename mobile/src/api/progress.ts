@@ -139,19 +139,32 @@ export async function getGems(userId: string): Promise<number | null> {
   return (data as { gems: number }).gems;
 }
 
-/** Local calendar date as YYYY-MM-DD; the day boundary follows the learner's clock. */
-export function today(): string {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+/**
+ * A calendar date as YYYY-MM-DD, written out by hand.
+ *
+ * `toISOString` converts to UTC first, so anywhere east of Greenwich local
+ * midnight lands on the previous day and every date comes back one short. That
+ * is what put the whole progress chart a day behind: Wednesday's column was
+ * labelled Tuesday, and today's lesson appeared to land yesterday.
+ */
+function isoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
 
-  return local.toISOString().slice(0, 10);
+  return `${year}-${month}-${day}`;
+}
+
+/** Local calendar date; the day boundary follows the learner's own clock. */
+export function today(): string {
+  return isoDate(new Date());
 }
 
 export function dayBefore(iso: string, back: number): string {
   const date = new Date(`${iso}T00:00:00`);
   date.setDate(date.getDate() - back);
 
-  return date.toISOString().slice(0, 10);
+  return isoDate(date);
 }
 
 export type AwardResult = {
@@ -175,12 +188,13 @@ export async function completeLesson(
   lessonId: number,
   correct: number,
   total: number,
+  day: string = today(),
 ): Promise<AwardResult> {
   const { data, error } = await supabase.rpc('complete_lesson', {
     lesson_id: lessonId,
     correct,
     total,
-    local_day: today(),
+    local_day: day,
   });
 
   if (error) throw error;

@@ -21,11 +21,23 @@ function useScrollPadding() {
   };
 }
 
-export function ResultScreen({ state, dispatch }: { state: State; dispatch: (action: Action) => void }) {
+export function ResultScreen({
+  state,
+  dispatch,
+  onEnableReminders,
+}: {
+  state: State;
+  dispatch: (action: Action) => void;
+  onEnableReminders: (wanted: boolean) => void;
+}) {
   const insets = useSafeAreaInsets();
   const result = state.lastResult;
   // the reward is the server's answer, so there is a moment before it arrives
   const waiting = state.pendingAward !== null;
+  /* Asked here, and only here: a lesson has just been finished, so the offer
+     lands on somebody who has seen what the reminder is for. Asking on the
+     welcome screen would be asking a stranger. */
+  const offerReminders = !waiting && !state.remindersAnswered;
 
   return (
     <View style={[styles.screen, styles.center, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
@@ -53,6 +65,29 @@ export function ResultScreen({ state, dispatch }: { state: State; dispatch: (act
       </View>
 
       {state.syncMessage ? <Note tone="error">{state.syncMessage}</Note> : null}
+
+      {offerReminders ? (
+        <View style={styles.offer}>
+          <Text style={styles.offerTitle}>Keep this going?</Text>
+          <Text style={styles.offerText}>
+            Reminders at times you pick — and never on a day you have already practised.
+          </Text>
+          <View style={styles.offerRow}>
+            <ChunkyButton
+              icon="notifications"
+              label="Remind me"
+              onPress={() => onEnableReminders(true)}
+              style={{ flex: 1 }}
+            />
+            <ChunkyButton
+              label="No thanks"
+              onPress={() => onEnableReminders(false)}
+              style={{ flex: 1 }}
+              tone="ghost"
+            />
+          </View>
+        </View>
+      ) : null}
 
       <ChunkyButton
         disabled={waiting}
@@ -274,6 +309,14 @@ export function ProfileScreen({
 
   return (
     <ScrollView contentContainerStyle={pad} style={styles.screen}>
+      {state.queuedLessons > 0 ? (
+        <Note>
+          {state.queuedLessons === 1
+            ? 'One finished lesson is waiting for a connection.'
+            : `${state.queuedLessons} finished lessons are waiting for a connection.`}
+        </Note>
+      ) : null}
+
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
           {state.avatarUri ? (
@@ -349,6 +392,19 @@ const styles = StyleSheet.create({
   unitHeadName: { ...type.label, flex: 1, color: color.onSurface },
   unitHeadCount: { ...type.labelSm, color: color.onSurfaceVariant },
   sectionHead: { ...type.section, color: color.onSurface, marginBottom: 12 },
+  offer: {
+    alignSelf: 'stretch',
+    gap: 8,
+    marginTop: space.md,
+    padding: 16,
+    borderRadius: radius.base,
+    borderWidth: 2,
+    borderColor: color.surfaceHighest,
+    backgroundColor: color.surfaceLowest,
+  },
+  offerTitle: { ...type.section, color: color.onSurface },
+  offerText: { ...type.bodySm, color: color.onSurfaceVariant },
+  offerRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   resultMark: {
     width: 128,
     height: 128,

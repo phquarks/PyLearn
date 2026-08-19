@@ -43,6 +43,13 @@ export type State = {
   avatarUrl: string;
   /** an admin removed this profile's name and picture from what others see */
   profileHidden: boolean;
+  remindersOn: boolean;
+  /** times of day as "HH:MM", sorted; several a day is allowed */
+  reminderTimes: string[];
+  /** whether the learner has been asked about reminders, either way */
+  remindersAnswered: boolean;
+  /** finished lessons still waiting for a connection */
+  queuedLessons: number;
   onboardingIndex: number;
   authMode: 'login' | 'register';
   goal: string;
@@ -109,11 +116,14 @@ export type Action =
   | { type: 'SET_SYNC_MESSAGE'; message: string }
   | { type: 'SET_DISPLAY_NAME'; name: string }
   | { type: 'SET_AVATAR'; uri: string; url?: string }
+  | { type: 'SET_REMINDERS'; on: boolean; times: string[]; answered: boolean }
   | { type: 'EQUIP_COSMETIC'; id: string }
   | {
       type: 'APPLY_AWARD';
       award: { xp: number; gems: number; streak: number; completedLessons: number[]; awardedXp: number };
     }
+  | { type: 'QUEUE_AWARD'; waiting: number }
+  | { type: 'SET_QUEUED'; waiting: number }
   | { type: 'APPLY_PURCHASE'; gems: number; ownedItems: string[] }
   | { type: 'APPLY_HEARTS'; hearts: number; nextAt: string; gems?: number }
   | { type: 'SET_GEMS'; gems: number }
@@ -125,6 +135,10 @@ export const initialState: State = {
   avatarUri: '',
   avatarUrl: '',
   profileHidden: false,
+  remindersOn: false,
+  reminderTimes: ['19:00'],
+  remindersAnswered: false,
+  queuedLessons: 0,
   onboardingIndex: 0,
   authMode: 'register',
   goal: '',
@@ -145,7 +159,14 @@ export const initialState: State = {
   lastResult: null,
   pendingAward: null,
   lesson: null,
-  profileStartedAt: new Date().toISOString().slice(0, 10),
+  // local date, not UTC: see isoDate in api/progress for why toISOString lies
+  profileStartedAt: (() => {
+    const now = new Date();
+
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
+      now.getDate(),
+    ).padStart(2, '0')}`;
+  })(),
   syncMessage: '',
 };
 
@@ -293,6 +314,13 @@ export function reducer(state: State, action: Action): State {
       return { ...state, syncMessage: action.message };
     case 'SET_DISPLAY_NAME':
       return { ...state, displayName: action.name };
+    case 'SET_REMINDERS':
+      return {
+        ...state,
+        remindersOn: action.on,
+        reminderTimes: action.times,
+        remindersAnswered: action.answered,
+      };
     case 'SET_AVATAR':
       return {
         ...state,
@@ -320,6 +348,34 @@ export function reducer(state: State, action: Action): State {
           : state.lastResult,
         pendingAward: null,
       };
+    /* No connection, so the reward is worked out here for now. The numbers use
+       the same rule the server does, and are replaced by its answer the moment
+       the queue drains — an estimate shown as final, then quietly corrected,
+       beats a finished lesson that appears not to have happened. */
+    case 'QUEUE_AWARD': {
+      const pending = state.pendingAward;
+
+      if (!pending) return state;
+
+      const repeat = state.completedLessons.includes(pending.lessonId);
+      const fullXp = 10 + pending.correct * 5;
+      const earnedXp = repeat ? Math.max(1, Math.floor(fullXp / 3)) : fullXp;
+      const earnedGems = repeat ? 0 : 15;
+
+      return {
+        ...state,
+        xp: state.xp + earnedXp,
+        gems: state.gems + earnedGems,
+        completedLessons: repeat
+          ? state.completedLessons
+          : [...state.completedLessons, pending.lessonId],
+        lastResult: { xp: earnedXp, accuracy: pending.accuracy, title: pending.title },
+        pendingAward: null,
+        queuedLessons: action.waiting,
+      };
+    }
+    case 'SET_QUEUED':
+      return { ...state, queuedLessons: action.waiting };
     case 'APPLY_PURCHASE':
       return { ...state, gems: action.gems, ownedItems: action.ownedItems };
     case 'APPLY_HEARTS':
