@@ -16,6 +16,7 @@ import type { Action, State } from '../state/store';
 import { buyHearts, getErrorMessage, purchaseItem } from '../api/progress';
 import { color, edge, radius, space, type } from '../theme';
 import { SnakeCreature } from '../components/SnakeCreature';
+import { AiCoach } from '../components/AiCoach';
 import { ChunkyButton, Icon, Note, sink } from '../components/ui';
 
 function ScreenHeader({ title, gems, onBack }: { title: string; gems: number; onBack: () => void }) {
@@ -68,6 +69,7 @@ export function CustomizeScreen({
   const insets = useSafeAreaInsets();
   const { t } = useText();
   const [slot, setSlot] = useState<CosmeticSlot>('skin');
+  const [chatOpen, setChatOpen] = useState(false);
   const items = bySlot(slot);
   const worn = { skin: state.snakeSkin, hat: state.snakeHat, trail: state.snakeTrail };
 
@@ -84,6 +86,25 @@ export function CustomizeScreen({
         <Text style={styles.sub}>{t('snake.sub')}</Text>
 
         <SnakePreview state={state} />
+
+        {/* Directly under him, above the wardrobe. He is the character the app
+            has been building all along; giving him a voice is worth more than
+            another hat, so it does not go below three rows of swatches. */}
+        <View style={styles.chatSlot}>
+        <Pressable
+          onPress={() => setChatOpen(true)}
+          style={({ pressed }) => [styles.chat, sink(pressed, edge.card)]}
+        >
+          <View style={styles.chatBadge}>
+            <Icon name="forum" size={22} tint={color.onPrimary} />
+          </View>
+          <View style={styles.chatText}>
+            <Text style={styles.chatTitle}>{t('snake.chat')}</Text>
+            <Text style={styles.chatSub}>{t('snake.chatText')}</Text>
+          </View>
+          <Icon name="chevron-right" size={24} tint={color.outline} />
+        </Pressable>
+        </View>
 
         <Text style={styles.sectionHead}>{t('snake.customize')}</Text>
         <View style={styles.tabs}>
@@ -148,6 +169,14 @@ export function CustomizeScreen({
           tone="ghost"
         />
       </ScrollView>
+
+      <AiCoach
+        // no exercise here, so this is the plain conversation
+        context={{ about: 'the PyLearn course' }}
+        onClose={() => setChatOpen(false)}
+        questionKey="sneaky"
+        visible={chatOpen}
+      />
     </View>
   );
 }
@@ -361,6 +390,31 @@ const styles = StyleSheet.create({
   display: { ...type.display, color: color.onSurface },
   sub: { ...type.bodySm, color: color.onSurfaceVariant, marginTop: 4, marginBottom: 22 },
   sectionHead: { ...type.section, color: color.onSurface, marginBottom: 12, marginTop: 8 },
+  // the gap lives out here: `sink` zeroes vertical margins on the card itself
+  chatSlot: { marginBottom: 26 },
+  chat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: radius.base,
+    borderWidth: 2,
+    borderColor: color.primaryContainer,
+    borderBottomWidth: edge.card,
+    borderBottomColor: color.primaryEdge,
+    backgroundColor: color.primaryWash,
+  },
+  chatBadge: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    backgroundColor: color.primaryContainer,
+  },
+  chatText: { flex: 1, gap: 2 },
+  chatTitle: { ...type.headline, color: color.onSurface },
+  chatSub: { ...type.bodySm, color: color.onSurfaceVariant },
   preview: {
     height: 260,
     alignItems: 'center',

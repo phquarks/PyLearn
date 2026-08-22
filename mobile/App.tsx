@@ -14,6 +14,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getCurrentSession, signOut, subscribeToAuthChanges } from './src/api/auth';
 import { clearAvatar, getAvatar, uploadExistingAvatar } from './src/api/avatar';
 import { isAdmin } from './src/api/admin';
+import { flushEvents, milestone, reportCrash } from './src/api/events';
 import { clearQueue, flushQueue, queueLesson, readQueue } from './src/api/offline';
 import {
   askPermission,
@@ -42,7 +43,10 @@ import {
   type ProfilePatch,
   type LeaderboardRow,
 } from './src/api/progress';
-import { costsHearts } from './src/data/lessons';
+import { flushMistakes, recordMistake } from './src/api/mistakes';
+import { costsHearts, DEFAULT_COURSE } from './src/data/lessons';
+import { forgetGeneratedLessons, isGenerated } from './src/data/customLessons';
+import { CrashBoundary } from './src/components/CrashBoundary';
 import { DrawnIcon } from './src/components/DrawnIcon';
 import { TabBar } from './src/components/TabBar';
 import { TopBar } from './src/components/TopBar';
@@ -53,6 +57,7 @@ import { AuthScreen, ChoiceScreen, LanguageScreen, OnboardingScreen } from './sr
 import { LockScreen } from './src/screens/LockScreen';
 import { NoHeartsScreen } from './src/screens/NoHeartsScreen';
 import { PinSetupScreen } from './src/screens/PinSetupScreen';
+import { PracticeScreen } from './src/screens/PracticeScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { LessonScreen } from './src/screens/LessonScreen';
 import { CustomizeScreen, ShopScreen } from './src/screens/SnakeScreens';
@@ -65,14 +70,18 @@ import { color } from './src/theme';
 const CHROME: Screen[] = ['home', 'progress', 'customize', 'league', 'profile'];
 
 export default function App() {
+  const [crashUser, setCrashUser] = useState<string | null>(null);
+
   return (
-    <TextProvider>
-      <PyLearn />
-    </TextProvider>
+    <CrashBoundary userId={crashUser}>
+      <TextProvider>
+        <PyLearn onUser={setCrashUser} />
+      </TextProvider>
+    </CrashBoundary>
   );
 }
 
-function PyLearn() {
+function PyLearn({ onUser }: { onUser: (id: string | null) => void }) {
   const { language } = useText();
   const [fontsLoaded] = useFonts({
     PlusJakartaSans_700Bold,
@@ -105,6 +114,14 @@ function PyLearn() {
   const savedProfile = useRef<ProfilePatch | null>(null);
   const unsavedPatch = useRef<ProfilePatch | null>(null);
   const userId = session?.user.id;
+  /* Read by the crash handlers, which are installed once and must not be torn
+     down and rebuilt every time somebody signs in. */
+  const userIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    userIdRef.current = userId ?? null;
+    onUser(userId ?? null);
+  }, [userId, onUser]);
 
   // restore a stored session, then follow sign-in and sign-out
   useEffect(() => {
@@ -120,6 +137,29 @@ function PyLearn() {
       setSession(next);
       if (!next) setProgressReady(false);
     });
+  }, []);
+
+  /* Errors thrown outside React's render — a promise nobody caught, a callback
+     that blew up — never reach the boundary, so they are caught here. The
+     previous handler is still called: swallowing it would hide the crash from
+     the red screen in development. */
+  useEffect(() => {
+    const globals = global as unknown as {
+      ErrorUtils?: {
+        getGlobalHandler: () => (error: Error, fatal?: boolean) => void;
+        setGlobalHandler: (handler: (error: Error, fatal?: boolean) => void) => void;
+      };
+    };
+    const previous = globals.ErrorUtils?.getGlobalHandler();
+
+    globals.ErrorUtils?.setGlobalHandler((error, fatal) => {
+      reportCrash(error, fatal ? 'fatal' : 'handled', userIdRef.current);
+      previous?.(error, fatal);
+    });
+
+    return () => {
+      if (previous) globals.ErrorUtils?.setGlobalHandler(previous);
+    };
   }, []);
 
   /* The avatar is device-local and is read once. */
@@ -248,7 +288,7 @@ function PyLearn() {
             display_name: metaName || null,
             goal: null,
             experience: null,
-            language: 'Python',
+            language: DEFAULT_COURSE,
             xp: 0,
             streak: 0,
             hearts: 5,
@@ -268,7 +308,7 @@ function PyLearn() {
                 display_name: metaName || null,
                 goal: null,
                 experience: null,
-                language: 'Python',
+                language: DEFAULT_COURSE,
                 snake_skin: 'green',
                 snake_hat: 'none',
                 snake_trail: 'plain',
@@ -422,6 +462,19 @@ function PyLearn() {
     };
   }, [userId]);
 
+  /* Three milestones, each recorded once: signing up, finishing a first lesson,
+     and reaching a seventh day. Between them they answer the only question
+     worth asking this early — where do people stop. */
+  useEffect(() => {
+    if (!userId || !progressReady) return;
+
+    void flushEvents(userId).catch(() => undefined);
+    void milestone('signup', userId);
+
+    if (state.completedLessons.length > 0) void milestone('first_lesson', userId);
+    if (state.streak >= 7) void milestone('day7', userId);
+  }, [userId, progressReady, state.completedLessons.length, state.streak]);
+
   // the shop shows what the database will charge, not what the bundle guessed
   useEffect(() => {
     if (!userId) return;
@@ -570,6 +623,14 @@ function PyLearn() {
 
     pendingRef.current = pending;
 
+    /* Practice built from the learner's own mistakes is not part of the course
+       and is not reported: the server has never heard of a negative lesson id,
+       and a run it did score would be XP the learner wrote the questions for. */
+    if (isGenerated(pending.lessonId)) {
+      dispatch({ type: 'PRACTICE_DONE' });
+      return;
+    }
+
     void completeLesson(pending.lessonId, pending.correct, pending.total)
       .then((award) => {
         dispatch({
@@ -603,6 +664,23 @@ function PyLearn() {
         });
       });
   }, [state.pendingAward, userId, refreshActivity, refreshBoard]);
+
+  /* Every wrong answer goes in the notebook the personal lessons are built
+     from. Written from an effect rather than the reducer because the reducer
+     has to stay pure, and never awaited because being wrong should cost a
+     heart, not a pause. */
+  useEffect(() => {
+    if (!state.lastSlip) return;
+
+    recordMistake(state.lastSlip, userId ?? null);
+    dispatch({ type: 'CLEAR_SLIP' });
+  }, [state.lastSlip, userId]);
+
+  useEffect(() => {
+    if (!userId || !progressReady) return;
+
+    void flushMistakes(userId).catch(() => undefined);
+  }, [userId, progressReady]);
 
   /* Draining the queue. Tried on start, on coming back to the app, and on a
      slow timer while anything is waiting — there is no network event to listen
@@ -709,6 +787,7 @@ function PyLearn() {
     await clearAvatar();
     await clearReminders();
     await clearQueue();
+    forgetGeneratedLessons();
     savedProfile.current = null;
     unsavedPatch.current = null;
     setPinOn(false);
@@ -883,7 +962,7 @@ function Router({
         />
       );
     case 'language':
-      return <LanguageScreen dispatch={dispatch} />;
+      return <LanguageScreen dispatch={dispatch} state={state} />;
     case 'lesson':
       return <LessonScreen dispatch={dispatch} state={state} />;
     case 'result':
@@ -895,7 +974,9 @@ function Router({
         />
       );
     case 'progress':
-      return <ProgressScreen activity={activity} state={state} />;
+      return <ProgressScreen activity={activity} dispatch={dispatch} state={state} />;
+    case 'practice':
+      return <PracticeScreen dispatch={dispatch} userId={session?.user.id ?? ''} />;
     case 'league':
       return (
         <LeagueScreen board={board} error={boardError} userId={session?.user.id ?? ''} />

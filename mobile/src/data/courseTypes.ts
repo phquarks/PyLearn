@@ -36,7 +36,29 @@ export type BugQuestion = {
   explanation: string;
 };
 
-export type Question = ChoiceQuestion | BlankQuestion | BlocksQuestion | BugQuestion;
+/**
+ * Write the code yourself.
+ *
+ * The other four types can be marked by comparing strings, which is why they
+ * came first. This one cannot: `total = a + b` and `total=b+a` are the same
+ * program, and a course that insists on one of them is teaching typing rather
+ * than Python. So the marking is done by the model, reading the code against
+ * `goal` — and `answer` is only ever shown to it as a reference, never to the
+ * learner before they have finished.
+ */
+export type CodeQuestion = {
+  type: 'code';
+  prompt: string;
+  /** what is already in the editor: the shape of the task, never the answer */
+  starter: string;
+  /** the task in plain words, precise enough to mark against */
+  goal: string;
+  /** one solution that works, for the marker's reference */
+  answer: string;
+  explanation: string;
+};
+
+export type Question = ChoiceQuestion | BlankQuestion | BlocksQuestion | BugQuestion | CodeQuestion;
 
 export type Lesson = {
   id: number;

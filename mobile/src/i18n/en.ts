@@ -80,7 +80,7 @@ export const en = {
 
   // league
   'league.title': 'Leaderboard',
-  'league.sub': 'Everyone learning Python here, ranked by XP.',
+  'league.sub': 'Everyone learning here, ranked by XP.',
   'league.empty': 'Nobody has earned XP yet. Finish a lesson and you will be first on the board.',
   'league.alone': 'You are the only learner here so far. The board fills up as other people sign up.',
   'league.you': '{name} (you)',
@@ -155,6 +155,8 @@ export const en = {
   'snake.skins': 'Skins',
   'snake.hats': 'Hats',
   'snake.trails': 'Trails',
+  'snake.chat': 'Talk to Sneaky',
+  'snake.chatText': 'He knows the whole course. Ask him anything from it.',
   'snake.toShop': 'Go to shop',
   'shop.title': 'Snake Shop',
   'shop.sub': 'Gems come from finished lessons. Spend them here.',
@@ -197,7 +199,77 @@ export const en = {
   'blocked.kept':
     'Your progress is kept. If you think this is a mistake, write to us and we will look again.',
 
+  // courses
+  'course.title': 'Choose your course',
+  'course.sub': 'Your XP, streak and gems follow you between them.',
+  'course.change': 'Change',
+  'course.kicker': 'YOUR COURSE',
+  'course.switch': 'Switch course',
+  'course.current': 'Learning now',
+  'course.open': 'Open',
+  'course.soon': 'Soon',
+  'course.progress': '{done} of {total} lessons',
+  'course.notStarted': 'Not started yet',
+  'course.locked': 'Not written yet. The first two are.',
+
+  // writing code
+  'code.goal': 'What it has to do',
+  'code.check': 'Check my code',
+  'code.checking': 'Reading your code...',
+  'code.reset': 'Start over',
+  'code.offline': 'Your code can only be marked online. Try again when you have signal.',
+  'code.quota': 'That is all the marking this account gets today. The rest of the course still works.',
+  'code.down': 'The marker is not answering right now. Your code is still here — try again in a moment.',
+  'code.solution': 'One way to write it',
+
+  // the coach
+  'coach.ask': 'Stuck?',
+  'coach.freeTitle': 'Sneaky',
+  'coach.freeSub': 'Ask about anything in the course. He explains, he does not do it for you.',
+  'coach.freeEmpty': 'What is a loop for? Why did that not work? Ask away.',
+  'coach.freePlaceholder': 'Ask Sneaky anything',
+  'coach.open': 'Ask Sneaky',
+  'coach.title': 'Ask Sneaky',
+  'coach.sub': 'He will not tell you the answer. He will get you to it.',
+  'coach.close': 'Close',
+  'coach.empty': 'Ask anything about this exercise, or take a hint one step at a time.',
+  'coach.thinking': 'Thinking...',
+  'coach.hintOf': 'Hint {level} of {total}',
+  'coach.nextHint': 'Give me hint {level} of {total}',
+  'coach.noMoreHints': 'That is every hint for this one',
+  'coach.placeholder': 'Why does this not work?',
+  'coach.send': 'Send',
+  'coach.quota': 'That is all the help this account gets today. It comes back tomorrow.',
+  'coach.offline': 'Sneaky needs a connection to answer. The lesson carries on without him.',
+  'coach.down': 'Sneaky could not answer that one. Try again in a moment.',
+
+  // practice built from mistakes
+  'practice.card': 'Practice your mistakes',
+  'practice.cardText': 'A short lesson built from the questions you got wrong.',
+  'practice.title': 'Your own practice',
+  'practice.sub': 'Nothing here is from the course. It is made from what you got wrong.',
+  'practice.waiting': '{count} mistakes waiting to be turned into practice.',
+  'practice.build': 'Build a lesson',
+  'practice.building': 'Writing your lesson...',
+  'practice.tooFew': 'Not enough yet',
+  'practice.tooFewText':
+    'Practice is built from wrong answers, so there have to be a few first. Carry on with the course and come back.',
+  'practice.saved': 'Lessons you have made',
+  'practice.empty': 'No practice lessons yet.',
+  'practice.remove': 'Delete',
+  'practice.free': 'Costs no hearts',
+  'practice.failed': 'The lesson could not be written. Try again in a moment.',
+  'practice.quota': 'That is all the help this account gets today. Try again tomorrow.',
+  'practice.offline': 'Building a lesson needs a connection.',
+  'practice.back': 'Back to progress',
+
   // shared
+
+  // crash screen
+  'crash.title': 'Something broke',
+  'crash.text': 'The screen could not be drawn. A report has been sent, so we know it happened.',
+  'crash.retry': 'Try again',
+
   'common.offlineSaved': 'Saved on this phone. It will sync when you are back online.',
   'common.retry': 'Something went wrong. Please try again.',
 } as const;

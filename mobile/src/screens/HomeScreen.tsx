@@ -4,7 +4,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { color, edge, path as P, radius, space, type } from '../theme';
-import { costsHearts, lessons, unitDone, units, type UnitTone } from '../data/lessons';
+import { costsHearts, lessonsOf, unitDone, unitsOf, type UnitTone } from '../data/lessons';
 import { useText } from '../i18n/useText';
 import type { Action, State } from '../state/store';
 import { Icon, sink } from '../components/ui';
@@ -53,6 +53,12 @@ export function HomeScreen({ state, dispatch }: { state: State; dispatch: (actio
   const [measured, setMeasured] = useState(0);
   const jumped = useRef(false);
 
+  /* Everything below is scoped to the course the learner is on. Progress is one
+     flat list of finished ids across all courses, so switching courses changes
+     which path is drawn without touching what has been finished on the other. */
+  const units = unitsOf(state.language);
+  const lessons = lessonsOf(state.language);
+
   /* Unlocking runs down the flat course order, not the unit: finishing the last
      lesson of one unit is what opens the first lesson of the next. */
   const unlocked = new Set<number>();
@@ -68,6 +74,11 @@ export function HomeScreen({ state, dispatch }: { state: State; dispatch: (actio
   /* Open on the stone the learner is actually standing on. With twelve units the
      path is thousands of points long, and starting at the top means scrolling
      past everything already finished to reach the one thing left to do. */
+  // a different course is a different path, so the one-time jump happens again
+  useEffect(() => {
+    jumped.current = false;
+  }, [state.language]);
+
   useEffect(() => {
     if (jumped.current || activeId === null) return;
 
@@ -95,7 +106,7 @@ export function HomeScreen({ state, dispatch }: { state: State; dispatch: (actio
       ref={scroller}
       style={styles.screen}
     >
-      {units.map((unit) => {
+      {units.map((unit, unitIndex) => {
         const tone = tones[unit.tone];
         const done = unitDone(unit, state.completedLessons);
         const cleared = done === unit.lessons.length;
@@ -113,7 +124,9 @@ export function HomeScreen({ state, dispatch }: { state: State; dispatch: (actio
           >
             <View style={[styles.unit, { backgroundColor: tone.fill, borderBottomColor: tone.edge }]}>
               <Text style={[styles.unitKicker, { color: tone.on }]}>
-                {t('home.unitLine', { number: unit.id, done, total: unit.lessons.length })}
+                {/* numbered within the course: unit ids are unique app-wide,
+                    so the AI course would otherwise open at "Unit 101" */}
+                {t('home.unitLine', { number: unitIndex + 1, done, total: unit.lessons.length })}
               </Text>
               <Text style={[styles.unitTitle, { color: tone.on }]}>{unit.title}</Text>
               <Text style={[styles.unitText, { color: tone.on }]}>{unit.summary}</Text>

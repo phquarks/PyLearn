@@ -1,7 +1,7 @@
 /** App state. Copied from the web build — the reducer is platform-agnostic. */
 
 import { cosmeticById, owns } from '../data/cosmetics';
-import { costsHearts, lessons, onboardingSlides } from '../data/lessons';
+import { costsHearts, DEFAULT_COURSE, lessonById, onboardingSlides, type Question } from '../data/lessons';
 
 export type Screen =
   | 'onboarding'
@@ -19,6 +19,7 @@ export type Screen =
   | 'admin'
   | 'noHearts'
   | 'customize'
+  | 'practice'
   | 'shop';
 
 export type LessonSession = {
@@ -32,6 +33,19 @@ export type LessonSession = {
      text made the second one toggle the first off. */
   selected: string | number[];
   shake: boolean;
+  /** true while the model is marking written code; nothing else waits on it */
+  checking: boolean;
+  /** what the marker said about the code, shown instead of `explanation` */
+  feedback: string;
+};
+
+/** A wrong answer, handed to the app so it can be filed. Cleared once it is. */
+export type Slip = {
+  lessonId: number;
+  topic: string;
+  prompt: string;
+  chosen: string;
+  answer: string;
 };
 
 export type State = {
@@ -78,6 +92,8 @@ export type State = {
      worth, so nothing is added to the totals until it answers. */
   pendingAward: { lessonId: number; correct: number; total: number; title: string; accuracy: number } | null;
   lesson: LessonSession | null;
+  /** the most recent wrong answer, waiting to be written to the notebook */
+  lastSlip: Slip | null;
   profileStartedAt: string;
   syncMessage: string;
 };
@@ -93,6 +109,10 @@ export type Action =
   | { type: 'SELECT_ANSWER'; value: string }
   | { type: 'TOGGLE_BLOCK'; index: number }
   | { type: 'CHECK_ANSWER' }
+  | { type: 'CHECK_CODE' }
+  | { type: 'CODE_MARKED'; correct: boolean; feedback: string; slip?: string }
+  | { type: 'CODE_UNMARKED' }
+  | { type: 'CLEAR_SLIP' }
   | { type: 'CONTINUE_LESSON' }
   | { type: 'STOP_SHAKE' }
   | {
@@ -127,6 +147,7 @@ export type Action =
       type: 'APPLY_AWARD';
       award: { xp: number; gems: number; streak: number; completedLessons: number[]; awardedXp: number };
     }
+  | { type: 'PRACTICE_DONE' }
   | { type: 'QUEUE_AWARD'; waiting: number }
   | { type: 'SET_QUEUED'; waiting: number }
   | { type: 'APPLY_PURCHASE'; gems: number; ownedItems: string[] }
@@ -150,7 +171,7 @@ export const initialState: State = {
   authMode: 'register',
   goal: '',
   experience: '',
-  language: 'Python',
+  language: DEFAULT_COURSE,
   // a new learner starts empty; anything else is a number the app invented
   xp: 0,
   streak: 0,
@@ -166,6 +187,7 @@ export const initialState: State = {
   lastResult: null,
   pendingAward: null,
   lesson: null,
+  lastSlip: null,
   // local date, not UTC: see isoDate in api/progress for why toISOString lies
   profileStartedAt: (() => {
     const now = new Date();
@@ -176,6 +198,20 @@ export const initialState: State = {
   })(),
   syncMessage: '',
 };
+
+/**
+ * What the learner actually put forward, as one readable line.
+ *
+ * Blocks are held as positions, so the notebook would otherwise record "2,0,1"
+ * — true, and no use at all to the thing that later has to work out what they
+ * misunderstood.
+ */
+function chosenText(question: Question, selected: string | number[]): string {
+  if (!Array.isArray(selected)) return selected;
+  if (question.type !== 'blocks') return '';
+
+  return selected.map((slot) => question.options[slot] ?? '').join(' ');
+}
 
 export function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -201,7 +237,14 @@ export function reducer(state: State, action: Action): State {
       return { ...state, experience: action.experience, screen: 'language' };
     case 'SET_LANGUAGE':
       return { ...state, language: action.language, screen: 'home' };
-    case 'START_LESSON':
+    case 'START_LESSON': {
+      const opening = lessonById(action.lessonId);
+
+      /* A generated lesson can be asked for before it has been registered —
+         a deep link, or a stale button. Better to stay put than to open a
+         player with nothing in it. */
+      if (!opening) return state;
+
       return {
         ...state,
         screen: 'lesson',
@@ -211,10 +254,14 @@ export function reducer(state: State, action: Action): State {
           correct: 0,
           answered: false,
           isCorrect: null,
-          selected: [],
+          // a code question opens with its starter already typed in
+          selected: opening.questions[0]?.type === 'code' ? opening.questions[0].starter : [],
           shake: false,
+          checking: false,
+          feedback: '',
         },
       };
+    }
     case 'SELECT_ANSWER':
       if (!state.lesson || state.lesson.answered) return state;
 
@@ -236,9 +283,14 @@ export function reducer(state: State, action: Action): State {
     case 'CHECK_ANSWER': {
       if (!state.lesson || state.lesson.answered) return state;
 
-      const lesson = lessons.find((item) => item.id === state.lesson?.lessonId);
+      const lesson = lessonById(state.lesson.lessonId);
       const question = lesson?.questions[state.lesson.questionIndex];
-      if (!question) return state;
+      if (!question || !lesson) return state;
+
+      /* Written code is not marked here and cannot be: the reducer is
+         synchronous and the marker is a network call. The screen sends it and
+         comes back with CODE_MARKED. */
+      if (question.type === 'code') return state;
 
       const selected = state.lesson.selected;
       const correct =
@@ -256,6 +308,15 @@ export function reducer(state: State, action: Action): State {
       return {
         ...state,
         pendingHeartLoss: state.pendingHeartLoss + (spends ? 1 : 0),
+        lastSlip: correct
+          ? state.lastSlip
+          : {
+              lessonId: state.lesson.lessonId,
+              topic: lesson.title,
+              prompt: question.prompt,
+              chosen: chosenText(question, selected),
+              answer: Array.isArray(question.answer) ? question.answer.join(' ') : question.answer,
+            },
         lesson: {
           ...state.lesson,
           answered: true,
@@ -265,14 +326,63 @@ export function reducer(state: State, action: Action): State {
         },
       };
     }
+    /* The two halves of marking written code. The screen sets it running, the
+       model answers, and the session picks up where an ordinary CHECK_ANSWER
+       would have left it — so everything downstream stays the same. */
+    case 'CHECK_CODE':
+      if (!state.lesson || state.lesson.answered || state.lesson.checking) return state;
+
+      return { ...state, lesson: { ...state.lesson, checking: true } };
+    case 'CODE_MARKED': {
+      if (!state.lesson || state.lesson.answered) return state;
+
+      const lesson = lessonById(state.lesson.lessonId);
+      const question = lesson?.questions[state.lesson.questionIndex];
+      const spends = !action.correct && costsHearts(state.lesson.lessonId);
+
+      return {
+        ...state,
+        pendingHeartLoss: state.pendingHeartLoss + (spends ? 1 : 0),
+        lastSlip:
+          action.correct || !question || !lesson
+            ? state.lastSlip
+            : {
+                lessonId: state.lesson.lessonId,
+                topic: lesson.title,
+                prompt: question.prompt,
+                chosen: typeof state.lesson.selected === 'string' ? state.lesson.selected : '',
+                // what the marker named, which is more use in a notebook than
+                // the whole reference solution would be
+                answer: action.slip || 'wrote code that does not meet the task',
+              },
+        lesson: {
+          ...state.lesson,
+          checking: false,
+          answered: true,
+          isCorrect: action.correct,
+          correct: state.lesson.correct + (action.correct ? 1 : 0),
+          feedback: action.feedback,
+          shake: !action.correct,
+        },
+      };
+    }
+    /* The marker could not be reached. The question stays open and unanswered:
+       no heart is taken and nothing is recorded, because nobody has decided
+       whether the code was right. */
+    case 'CODE_UNMARKED':
+      return state.lesson ? { ...state, lesson: { ...state.lesson, checking: false } } : state;
+    case 'CLEAR_SLIP':
+      return { ...state, lastSlip: null };
     case 'CONTINUE_LESSON': {
       if (!state.lesson) return state;
 
-      const currentLesson = lessons.find((lesson) => lesson.id === state.lesson?.lessonId);
+      const currentLesson = lessonById(state.lesson.lessonId);
       if (!currentLesson) return { ...state, screen: 'home', lesson: null };
 
       const nextIndex = state.lesson.questionIndex + 1;
       if (nextIndex < currentLesson.questions.length) {
+        const next = currentLesson.questions[nextIndex];
+
         return {
           ...state,
           lesson: {
@@ -280,8 +390,10 @@ export function reducer(state: State, action: Action): State {
             questionIndex: nextIndex,
             answered: false,
             isCorrect: null,
-            selected: [],
+            selected: next?.type === 'code' ? next.starter : [],
             shake: false,
+            checking: false,
+            feedback: '',
           },
         };
       }
@@ -381,6 +493,22 @@ export function reducer(state: State, action: Action): State {
         queuedLessons: action.waiting,
       };
     }
+    /* A generated lesson is never reported to the server, so it never comes
+       back with an award. It pays nothing on purpose: practice that earned XP
+       would be a way to farm the leaderboard out of questions the learner's own
+       device asked for. The run still closes properly. */
+    case 'PRACTICE_DONE':
+      return state.pendingAward
+        ? {
+            ...state,
+            lastResult: {
+              xp: 0,
+              accuracy: state.pendingAward.accuracy,
+              title: state.pendingAward.title,
+            },
+            pendingAward: null,
+          }
+        : state;
     case 'SET_QUEUED':
       return { ...state, queuedLessons: action.waiting };
     case 'APPLY_PURCHASE':

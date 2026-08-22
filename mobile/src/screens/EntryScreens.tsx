@@ -4,12 +4,12 @@ import { KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { color, edge, radius, space, type } from '../theme';
-import { onboardingSlides } from '../data/lessons';
+import { courseById, courses, onboardingSlides, unitDone } from '../data/lessons';
 import { signInWithEmail, signUpWithEmail } from '../api/auth';
 import { getErrorMessage } from '../api/progress';
 import { useText } from '../i18n/useText';
 import type { Action, State } from '../state/store';
-import { ChunkyButton, Icon, sink } from '../components/ui';
+import { accents, ChunkyButton, Icon, ProgressBar, sink } from '../components/ui';
 import { DrawnIcon } from '../components/DrawnIcon';
 import type { Session } from '@supabase/supabase-js';
 
@@ -310,49 +310,149 @@ export function ChoiceScreen({
   );
 }
 
-export function LanguageScreen({ dispatch }: { dispatch: (action: Action) => void }) {
+/**
+ * Which course you are on.
+ *
+ * Doubles as the first-run picker and the switcher, because they are the same
+ * question and a second screen asking it differently would only be a second
+ * place for the answer to disagree.
+ *
+ * Progress is shared: XP, streak, gems and hearts belong to the learner, not to
+ * a course. Only the path changes. That is what makes switching cheap enough to
+ * do out of curiosity, which is the point of offering it at all.
+ */
+export function LanguageScreen({ state, dispatch }: { state: State; dispatch: (action: Action) => void }) {
   const insets = useSafeAreaInsets();
-  const languages: [string, string, boolean][] = [
-    ['Python', 'code', true],
-    ['JavaScript', 'javascript', false],
-    ['Java', 'coffee', false],
-    ['C++', 'memory', false],
-    ['Rust', 'settings', false],
-    ['Ruby', 'diamond', false],
+  const { t } = useText();
+  const current = courseById(state.language).id;
+  /* Named here rather than in the course list: these have no lessons behind
+     them, and a Course with an empty units array would be a real course that
+     draws an empty path. Better that they cannot be chosen at all. */
+  const soon: [string, string][] = [
+    ['JavaScript', 'javascript'],
+    ['Java', 'coffee'],
+    ['C++', 'memory'],
+    ['Rust', 'settings'],
   ];
 
   return (
     <ScrollView
-      contentContainerStyle={{ padding: space.screen, paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 }}
+      contentContainerStyle={{ padding: space.screen, paddingTop: insets.top + 32, paddingBottom: insets.bottom + 40 }}
       style={styles.screen}
     >
-      <Text style={styles.authTitle}>Choose a language</Text>
-      <Text style={styles.slideTextLeft}>Only the first course is available for now.</Text>
+      <Text style={styles.authTitle}>{t('course.title')}</Text>
+      <Text style={styles.slideTextLeft}>{t('course.sub')}</Text>
 
-      <View style={styles.langGrid}>
-        {languages.map(([name, icon, active]) => (
-          <Pressable
-            disabled={!active}
-            key={name}
-            onPress={() => dispatch({ type: 'SET_LANGUAGE', language: name })}
-            style={({ pressed }) => [
-              styles.langCard,
-              !active ? styles.langLocked : null,
-              sink(pressed && active, edge.card),
-            ]}
-          >
-            <Icon name={icon} size={30} tint={active ? color.primary : color.surfaceDim} />
-            <Text style={styles.langName}>{name}</Text>
-            <Text style={styles.langBadge}>{active ? 'Active' : 'Soon'}</Text>
-          </Pressable>
+      <View style={styles.courseList}>
+        {courses.map((course) => {
+          const accent = accents[course.tone];
+          const total = course.units.reduce((sum, unit) => sum + unit.lessons.length, 0);
+          const done = course.units.reduce((sum, unit) => sum + unitDone(unit, state.completedLessons), 0);
+          const active = course.id === current;
+
+          return (
+            <Pressable
+              key={course.id}
+              onPress={() => dispatch({ type: 'SET_LANGUAGE', language: course.id })}
+              style={({ pressed }) => [
+                styles.courseCard,
+                /* The chosen one is filled with its accent; the others are only
+                   outlined in it. One glance answers "which am I on", which a
+                   badge in the corner never quite does. */
+                active
+                  ? { borderColor: accent.edge, backgroundColor: accent.wash }
+                  : { borderColor: color.surfaceHighest, backgroundColor: color.surfaceLowest },
+                sink(pressed, edge.card),
+              ]}
+            >
+              <View style={styles.courseTop}>
+                <View style={[styles.courseIcon, { backgroundColor: active ? accent.fill : color.surfaceContainer }]}>
+                  <Icon name={course.icon} size={30} tint={active ? accent.on : color.onSurfaceVariant} />
+                </View>
+
+                <View style={styles.courseHead}>
+                  <Text style={styles.courseName}>{course.title}</Text>
+                  <Text style={styles.courseBlurb}>{course.blurb}</Text>
+                </View>
+
+                {active ? (
+                  <View style={[styles.courseTick, { backgroundColor: accent.fill }]}>
+                    <Icon name="check" size={18} tint={accent.on} />
+                  </View>
+                ) : null}
+              </View>
+
+              <ProgressBar done={done} total={total} tint={accent.fill} />
+
+              <View style={styles.courseFoot}>
+                <Text style={styles.courseMeta}>
+                  {done === 0 ? t('course.notStarted') : t('course.progress', { done, total })}
+                </Text>
+                <Text style={[styles.courseAction, active ? { color: accent.edge } : null]}>
+                  {active ? t('course.current') : t('course.open')}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* The unwritten ones stay small. Given the same card as a real course
+          they would take up two thirds of the screen saying nothing. */}
+      <Text style={styles.soonHead}>{t('course.soon')}</Text>
+      <View style={styles.soonGrid}>
+        {soon.map(([name, icon]) => (
+          <View key={name} style={styles.soonTile}>
+            <Icon name={icon} size={20} tint={color.outlineVariant} />
+            <Text style={styles.soonName}>{name}</Text>
+          </View>
         ))}
       </View>
+      <Text style={styles.soonNote}>{t('course.locked')}</Text>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.surface },
+  courseList: { gap: 14, marginTop: 24 },
+  courseCard: {
+    gap: 14,
+    padding: 18,
+    borderRadius: radius.base,
+    borderWidth: 2,
+    borderBottomWidth: edge.card,
+  },
+  courseTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  courseIcon: {
+    width: 56,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+  },
+  courseHead: { flex: 1, gap: 3 },
+  courseName: { ...type.title, fontSize: 21, color: color.onSurface },
+  courseBlurb: { ...type.bodySm, color: color.onSurfaceVariant },
+  courseTick: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
+  courseFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  courseMeta: { ...type.labelSm, color: color.onSurfaceVariant },
+  courseAction: { ...type.label, color: color.primary },
+  soonHead: { ...type.labelSm, color: color.outline, letterSpacing: 0.6, marginTop: 32, marginBottom: 10 },
+  soonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  soonTile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: color.surfaceHigh,
+    backgroundColor: color.surfaceLow,
+  },
+  soonName: { ...type.label, color: color.outline },
+  soonNote: { ...type.labelSm, color: color.outline, marginTop: 12 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   brandText: { ...type.title, color: color.primary },
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -464,19 +564,4 @@ const styles = StyleSheet.create({
   },
   optionTitle: { ...type.label, fontSize: 17, color: color.onSurface },
   optionText: { ...type.labelSm, color: color.onSurfaceVariant, marginTop: 2 },
-  langGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: space.md },
-  langCard: {
-    width: '47%',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 18,
-    borderRadius: radius.base,
-    borderWidth: 2,
-    borderColor: color.surfaceHighest,
-    borderBottomWidth: edge.card,
-    backgroundColor: color.surfaceLowest,
-  },
-  langLocked: { backgroundColor: color.surfaceLow },
-  langName: { ...type.label, fontSize: 16, color: color.onSurface },
-  langBadge: { ...type.labelSm, color: color.onSurfaceVariant },
 });

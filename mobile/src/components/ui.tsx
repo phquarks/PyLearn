@@ -2,7 +2,72 @@ import { MaterialIcons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import type { UnitTone } from '../data/courseTypes';
 import { color, edge, radius, space, type } from '../theme';
+
+/**
+ * The four accents, as one table.
+ *
+ * `fill` is the saturated one, `on` is what stays legible on top of it, and
+ * `wash` is the tint you use when the accent has to sit behind body text. Kept
+ * here rather than per screen so two screens drawing "the primary course" can
+ * never drift into two different blues.
+ */
+export const accents: Record<UnitTone, { fill: string; edge: string; on: string; wash: string }> = {
+  primary: {
+    fill: color.primaryContainer,
+    edge: color.primaryEdge,
+    on: color.onPrimary,
+    wash: color.primaryWash,
+  },
+  tertiary: {
+    fill: color.tertiaryContainer,
+    edge: color.tertiaryEdge,
+    on: color.onTertiaryContainer,
+    wash: color.tertiaryWash,
+  },
+  success: {
+    fill: color.successContainer,
+    edge: color.successEdge,
+    on: color.onSuccessContainer,
+    wash: color.successWash,
+  },
+  secondary: {
+    fill: color.secondaryContainer,
+    edge: color.secondaryEdge,
+    on: color.onSecondaryFixed,
+    wash: color.secondaryFixed,
+  },
+};
+
+/**
+ * A share of something, drawn as a bar.
+ *
+ * Rounded on both the track and the fill, and the fill keeps a minimum width
+ * once it is non-zero: a single finished lesson out of fifty-one is half a pixel
+ * otherwise, which reads as "none" to somebody who has in fact started.
+ */
+export function ProgressBar({ done, total, tint }: { done: number; total: number; tint: string }) {
+  const share = total > 0 ? done / total : 0;
+
+  return (
+    <View style={barStyles.track}>
+      {share > 0 ? (
+        <View style={[barStyles.fill, { width: `${Math.max(6, share * 100)}%`, backgroundColor: tint }]} />
+      ) : null}
+    </View>
+  );
+}
+
+const barStyles = StyleSheet.create({
+  track: {
+    height: 8,
+    borderRadius: radius.pill,
+    backgroundColor: color.surfaceHighest,
+    overflow: 'hidden',
+  },
+  fill: { height: '100%', borderRadius: radius.pill },
+});
 
 /**
  * The web build draws isometric depth with a zero-blur box-shadow. React Native

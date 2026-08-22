@@ -3,12 +3,12 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { color, edge, radius, space, type } from '../theme';
-import { lessons, unitDone, units } from '../data/lessons';
+import { courseById, lessonsOf, unitDone, unitsOf } from '../data/lessons';
 import { reportProfile } from '../api/moderation';
 import { dayBefore, getErrorMessage, today, type ActivityDay, type LeaderboardRow } from '../api/progress';
 import { useText } from '../i18n/useText';
 import type { Action, State } from '../state/store';
-import { ChunkyButton, Icon, Note, sink } from '../components/ui';
+import { accents, ChunkyButton, Icon, Note, ProgressBar, sink } from '../components/ui';
 
 const MARK = require('../../assets/logo-mark.png');
 
@@ -103,9 +103,22 @@ export function ResultScreen({
   );
 }
 
-export function ProgressScreen({ state, activity }: { state: State; activity: ActivityDay[] }) {
+export function ProgressScreen({
+  state,
+  activity,
+  dispatch,
+}: {
+  state: State;
+  activity: ActivityDay[];
+  dispatch: (action: Action) => void;
+}) {
   const pad = useScrollPadding();
   const { t } = useText();
+  /* Scoped to the course on screen. The weekly XP chart is not: XP is earned by
+     the learner, not by a course, and splitting it would make a productive week
+     spent on the other path look like a week off. */
+  const units = unitsOf(state.language);
+  const lessons = lessonsOf(state.language);
 
   // the last seven calendar days, oldest first, filled in from the day log
   const earned = new Map(activity.map((row) => [row.day, row.xp]));
@@ -153,6 +166,28 @@ export function ProgressScreen({ state, activity }: { state: State; activity: Ac
             <Text style={styles.barLabel}>{entry.label}</Text>
           </View>
         ))}
+      </View>
+
+      {/* Put here rather than on the path: the moment somebody looks at a week
+          of their own progress is the moment "practise what you got wrong" is
+          an offer rather than an interruption. */}
+      {/* Wrapped for the same reason as the course card: `sink` zeroes the
+          vertical margins to keep the press from resizing the row, so the gap
+          has to sit on something `sink` does not touch. */}
+      <View style={styles.practiceSlot}>
+      <Pressable
+        onPress={() => dispatch({ type: 'GO_TO', screen: 'practice' })}
+        style={({ pressed }) => [styles.practice, sink(pressed, edge.card)]}
+      >
+        <View style={styles.practiceBadge}>
+          <Icon name="auto-awesome" size={22} tint={color.onTertiaryContainer} />
+        </View>
+        <View style={styles.practiceText}>
+          <Text style={styles.practiceTitle}>{t('practice.card')}</Text>
+          <Text style={styles.practiceSub}>{t('practice.cardText')}</Text>
+        </View>
+        <Icon name="chevron-right" size={24} tint={color.outline} />
+      </Pressable>
       </View>
 
       <Text style={styles.sectionHead}>{t('progress.topics')}</Text>
@@ -309,13 +344,30 @@ export function ProfileScreen({
 }) {
   const pad = useScrollPadding();
   const { t } = useText();
+  const course = courseById(state.language);
+  const courseTotal = course.units.reduce((sum, unit) => sum + unit.lessons.length, 0);
+  const courseDone = course.units.reduce(
+    (sum, unit) => sum + unitDone(unit, state.completedLessons),
+    0,
+  );
+  const accent = accents[course.tone];
   const badges: [string, string, boolean][] = [
     ['local-fire-department', `${state.streak}-day streak`, state.streak > 0],
     ['inventory-2', 'Variables', state.completedLessons.includes(1)],
     ['terminal', 'Output', state.completedLessons.includes(2)],
     ['refresh', 'Loops', state.completedLessons.includes(4)],
-    ['workspace-premium', 'Python Master', state.completedLessons.length === lessons.length],
-    ['bolt', 'Flawless run', false],
+    // named per course: `completedLessons` now spans both, so counting the
+    // total against it would hand out Python Master for AI lessons
+    [
+      'workspace-premium',
+      'Python Master',
+      lessonsOf('python').every((lesson) => state.completedLessons.includes(lesson.id)),
+    ],
+    [
+      'psychology',
+      'AI Literate',
+      lessonsOf('ai').every((lesson) => state.completedLessons.includes(lesson.id)),
+    ],
   ];
 
   return (
@@ -363,6 +415,44 @@ export function ProfileScreen({
             tone="tertiary"
           />
         ) : null}
+      </View>
+
+      {/* Its own card rather than a row inside the profile: this is the one
+          control here that changes what the whole app is about, and burying it
+          among the buttons made it read as another settings link. Drawn in the
+          course's own accent, so Python and AI are told apart at a glance. */}
+      {/* The gap lives on this wrapper, not on the card. `sink` writes
+          marginBottom: 0 to keep the press from changing the total height, and
+          it is applied last — so any margin set on the card itself is quietly
+          overwritten and the stats end up flush against it. */}
+      <View style={styles.courseSlot}>
+      <Pressable
+        onPress={() => dispatch({ type: 'GO_TO', screen: 'language' })}
+        style={({ pressed }) => [
+          styles.courseCard,
+          { borderColor: accent.fill, backgroundColor: accent.wash },
+          sink(pressed, edge.card),
+        ]}
+      >
+        <View style={[styles.courseIcon, { backgroundColor: accent.fill }]}>
+          <Icon name={course.icon} size={26} tint={accent.on} />
+        </View>
+
+        <View style={styles.courseBody}>
+          <Text style={styles.courseKicker}>{t('course.kicker')}</Text>
+          <Text style={styles.courseName}>{course.title}</Text>
+          <ProgressBar done={courseDone} total={courseTotal} tint={accent.fill} />
+          <Text style={styles.courseMeta}>
+            {courseDone === 0
+              ? t('course.notStarted')
+              : t('course.progress', { done: courseDone, total: courseTotal })}
+          </Text>
+        </View>
+
+        <View style={styles.courseSwap}>
+          <Icon name="swap-horiz" size={22} tint={color.onSurfaceVariant} />
+        </View>
+      </Pressable>
       </View>
 
       <View style={styles.statsRow}>
@@ -497,6 +587,58 @@ const styles = StyleSheet.create({
     backgroundColor: color.surfaceLow,
   },
   faceImage: { width: 34, height: 34, borderRadius: 17 },
+  courseSlot: { marginBottom: space.lg },
+  courseCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    borderRadius: radius.base,
+    borderWidth: 2,
+    borderBottomWidth: edge.card,
+  },
+  courseIcon: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+  },
+  courseBody: { flex: 1, gap: 5 },
+  courseKicker: { ...type.labelSm, color: color.onSurfaceVariant, letterSpacing: 0.6 },
+  courseName: { ...type.title, fontSize: 20, color: color.onSurface },
+  courseMeta: { ...type.labelSm, color: color.onSurfaceVariant },
+  courseSwap: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: color.surfaceLowest,
+  },
+  practiceSlot: { marginBottom: 26 },
+  practice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: radius.base,
+    borderWidth: 2,
+    borderColor: color.tertiaryContainer,
+    borderBottomWidth: edge.card,
+    backgroundColor: color.tertiaryWash,
+  },
+  practiceBadge: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    backgroundColor: color.surfaceLowest,
+  },
+  practiceText: { flex: 1, gap: 2 },
+  practiceTitle: { ...type.headline, color: color.onSurface },
+  practiceSub: { ...type.bodySm, color: color.onSurfaceVariant },
   rowActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

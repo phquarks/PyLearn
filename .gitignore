@@ -4,3 +4,6 @@ dist
 .env.local
 .DS_Store
 coverage
+
+# Supabase CLI scratch: version checks and the linked project ref
+supabase/.temp/

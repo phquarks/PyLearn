@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { buyHearts, getErrorMessage } from '../api/progress';
 import { HEART_REFILL_PRICE } from '../data/cosmetics';
-import { FREE_UNITS, units } from '../data/lessons';
+import { FREE_UNITS, unitsOf } from '../data/lessons';
 import { ChunkyButton, Icon, Note } from '../components/ui';
 import { useText } from '../i18n/useText';
 import type { Action, State } from '../state/store';
@@ -62,8 +62,9 @@ export function NoHeartsScreen({
   }, [left, state.heartsNextAt, onRefreshed]);
 
   const canAfford = state.gems >= HEART_REFILL_PRICE;
-  const freeUnitNames = units
-    .filter((unit) => unit.id <= FREE_UNITS)
+  // the free units of the course they are actually on, counted from its start
+  const freeUnitNames = unitsOf(state.language)
+    .slice(0, FREE_UNITS)
     .map((unit) => unit.title)
     .join(' and ');
 

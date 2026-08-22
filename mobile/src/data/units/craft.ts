@@ -291,6 +291,14 @@ export const craft: Unit[] = [
             answer: 'A body — even just pass',
             explanation: 'Python needs an indented block; pass is the placeholder that does nothing.',
           },
+          {
+            type: 'code',
+            prompt: 'Write a class Dog with a bark() method that prints \'Woof\', and call it.',
+            starter: 'class Dog:\n    \n',
+            goal: 'Define a class called Dog with a method bark that prints Woof, then create one and call bark on it.',
+            answer: 'class Dog:\n    def bark(self):\n        print("Woof")\n\n\nDog().bark()',
+            explanation: 'self is how a method reaches the object it was called on.',
+          },
         ],
       },
       {

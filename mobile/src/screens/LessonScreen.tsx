@@ -1,22 +1,31 @@
+import { useMemo, useState } from 'react';
 import { useEffect, useRef } from 'react';
-import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { color, edge, radius, space, type } from '../theme';
-import { lessons, type Question } from '../data/lessons';
+import { AiError, gradeCode } from '../api/ai';
+import { lessonById, type CodeQuestion, type Question } from '../data/lessons';
+import { jumbledOrder, shuffledOrder } from '../data/shuffle';
 import { useText } from '../i18n/useText';
 import type { Action, State } from '../state/store';
+import { AiCoach } from '../components/AiCoach';
+import { CodeEditor } from '../components/CodeEditor';
 import { ChunkyButton, Icon, sink } from '../components/ui';
 
 const MARK = require('../../assets/logo-mark.png');
 
 export function LessonScreen({ state, dispatch }: { state: State; dispatch: (action: Action) => void }) {
-  const { t } = useText();
+  const { t, language } = useText();
   const insets = useSafeAreaInsets();
   const session = state.lesson;
-  const lesson = lessons.find((item) => item.id === session?.lessonId);
+  const lesson = lessonById(session?.lessonId ?? 0);
   const question = lesson?.questions[session?.questionIndex ?? 0];
   const shake = useRef(new Animated.Value(0)).current;
+  const [coachOpen, setCoachOpen] = useState(false);
+  /* Only for the marker being unreachable. A wrong answer is not an error and
+     never shows up here. */
+  const [markerDown, setMarkerDown] = useState('');
 
   // a wrong answer nudges the card, matching the web build's shake
   useEffect(() => {
@@ -29,6 +38,12 @@ export function LessonScreen({ state, dispatch }: { state: State; dispatch: (act
     ]).start(() => dispatch({ type: 'STOP_SHAKE' }));
   }, [session?.shake, shake, dispatch]);
 
+  // a failure belongs to the question it happened on, not to the lesson
+  useEffect(() => {
+    setMarkerDown('');
+    setCoachOpen(false);
+  }, [session?.lessonId, session?.questionIndex]);
+
   if (!session || !lesson || !question) {
     return (
       <View style={[styles.screen, styles.empty]}>
@@ -38,8 +53,46 @@ export function LessonScreen({ state, dispatch }: { state: State; dispatch: (act
   }
 
   const selected = session.selected;
-  const canCheck = Array.isArray(selected) ? selected.length > 0 : selected.length > 0;
+  const writing = question.type === 'code';
+  const typed = typeof selected === 'string' ? selected : '';
+  /* A code answer is only ready when it is more than the starter it began as:
+     "Check" on untouched starter code is a wasted call and a wasted heart. */
+  const canCheck =
+    question.type === 'code'
+      ? typed.trim().length > 0 && typed.trim() !== question.starter.trim()
+      : selected.length > 0;
   const progress = ((session.questionIndex + Number(session.answered)) / lesson.questions.length) * 100;
+
+  async function checkCode(exercise: CodeQuestion) {
+    dispatch({ type: 'CHECK_CODE' });
+    setMarkerDown('');
+
+    try {
+      const verdict = await gradeCode(language, {
+        code: typed,
+        goal: exercise.goal,
+        answer: exercise.answer,
+      });
+
+      dispatch({
+        type: 'CODE_MARKED',
+        correct: verdict.correct,
+        feedback: verdict.feedback,
+        slip: verdict.slip,
+      });
+    } catch (error) {
+      /* The question stays open. Marking it wrong because the network was down
+         would take a heart for something the learner did not do. */
+      dispatch({ type: 'CODE_UNMARKED' });
+      setMarkerDown(
+        error instanceof AiError && error.reason === 'quota'
+          ? t('code.quota')
+          : error instanceof AiError && error.reason === 'offline'
+            ? t('code.offline')
+            : t('code.down'),
+      );
+    }
+  }
 
   return (
     <View style={styles.screen}>
@@ -57,11 +110,33 @@ export function LessonScreen({ state, dispatch }: { state: State; dispatch: (act
           <View style={[styles.trackFill, { width: `${progress}%` }]} />
         </View>
 
+        {/* the way out of being stuck, put where a learner who is stuck will
+            look: next to the thing counting down what being stuck costs */}
+        <Pressable
+          accessibilityLabel={t('coach.title')}
+          accessibilityRole="button"
+          onPress={() => setCoachOpen(true)}
+          style={({ pressed }) => [styles.help, sink(pressed, edge.tile)]}
+        >
+          <Icon name="lightbulb" size={20} tint={color.onTertiaryContainer} />
+        </Pressable>
+
         <View style={styles.hearts}>
           <Icon name="favorite" size={24} tint={color.error} />
           <Text style={styles.heartsValue}>{state.hearts}</Text>
         </View>
       </View>
+
+      <AiCoach
+        context={{
+          prompt: question.prompt,
+          code: 'code' in question ? question.code : question.type === 'code' ? question.starter : '',
+          attempt: writing ? typed : describeAttempt(question, selected),
+        }}
+        onClose={() => setCoachOpen(false)}
+        questionKey={`${session.lessonId}-${session.questionIndex}`}
+        visible={coachOpen}
+      />
 
       <Animated.View
         style={{
@@ -85,7 +160,23 @@ export function LessonScreen({ state, dispatch }: { state: State; dispatch: (act
             </View>
           ) : null}
 
-          <QuestionInput answered={session.answered} dispatch={dispatch} question={question} selected={selected} />
+          {question.type === 'code' ? (
+            <View style={styles.goal}>
+              <Text style={styles.goalLabel}>{t('code.goal')}</Text>
+              <Text style={styles.goalText}>{question.goal}</Text>
+            </View>
+          ) : null}
+
+          {markerDown ? <Text style={styles.markerDown}>{markerDown}</Text> : null}
+
+          <QuestionInput
+            answered={session.answered}
+            dispatch={dispatch}
+            question={question}
+            // a new lesson or a new question is what earns a new order
+            questionKey={`${session.lessonId}-${session.questionIndex}`}
+            selected={selected}
+          />
         </ScrollView>
       </Animated.View>
 
@@ -109,7 +200,7 @@ export function LessonScreen({ state, dispatch }: { state: State; dispatch: (act
                 { color: session.isCorrect ? color.onSuccessContainer : color.onErrorContainer },
               ]}
             >
-              {session.isCorrect ? 'Nice work!' : 'Almost!'}
+              {session.isCorrect ? t('lesson.correct') : t('lesson.wrong')}
             </Text>
           </View>
           <Text
@@ -118,8 +209,20 @@ export function LessonScreen({ state, dispatch }: { state: State; dispatch: (act
               { color: session.isCorrect ? color.onSuccessContainer : color.onErrorContainer },
             ]}
           >
-            {question.explanation}
+            {/* the marker's own words when it marked this one: it read the code
+                the learner actually wrote, which a stored explanation cannot */}
+            {session.feedback || question.explanation}
           </Text>
+
+          {/* Shown only after a wrong answer, and only for written code. There
+              is no single right string here, so without seeing one worked
+              version the learner is left guessing at what was wanted. */}
+          {question.type === 'code' && session.isCorrect === false ? (
+            <View style={styles.solution}>
+              <Text style={styles.solutionLabel}>{t('code.solution')}</Text>
+              <Text style={styles.solutionCode}>{question.answer}</Text>
+            </View>
+          ) : null}
           <ChunkyButton
             label={t('lesson.continue')}
             onPress={() => dispatch({ type: 'CONTINUE_LESSON' })}
@@ -128,7 +231,22 @@ export function LessonScreen({ state, dispatch }: { state: State; dispatch: (act
         </View>
       ) : (
         <View style={[styles.actionBar, { paddingBottom: insets.bottom + 20 }]}>
-          <ChunkyButton disabled={!canCheck} label={t('lesson.check')} onPress={() => dispatch({ type: 'CHECK_ANSWER' })} />
+          {session.checking ? (
+            <View style={styles.marking}>
+              <ActivityIndicator color={color.primaryContainer} />
+              <Text style={styles.markingText}>{t('code.checking')}</Text>
+            </View>
+          ) : (
+            <ChunkyButton
+              disabled={!canCheck}
+              label={writing ? t('code.check') : t('lesson.check')}
+              onPress={() =>
+                question.type === 'code'
+                  ? void checkCode(question)
+                  : dispatch({ type: 'CHECK_ANSWER' })
+              }
+            />
+          )}
         </View>
       )}
     </View>
@@ -140,13 +258,37 @@ function QuestionInput({
   selected,
   answered,
   dispatch,
+  questionKey,
 }: {
   question: Question;
   selected: string | number[];
   answered: boolean;
   dispatch: (action: Action) => void;
+  /** changes when the question does, which is when a new order is wanted */
+  questionKey: string;
 }) {
   const { t } = useText();
+  /* Held for as long as the question is on screen. Shuffling on every render
+     would have the options swapping places under the finger. */
+  const order = useMemo(
+    () =>
+      question.type === 'code'
+        ? []
+        : question.type === 'blocks'
+          ? jumbledOrder(question.options.length)
+          : shuffledOrder(question.options.length),
+    [questionKey],
+  );
+
+  if (question.type === 'code') {
+    return (
+      <CodeEditor
+        editable={!answered}
+        onChange={(next) => dispatch({ type: 'SELECT_ANSWER', value: next })}
+        value={typeof selected === 'string' ? selected : ''}
+      />
+    );
+  }
 
   if (question.type === 'blocks') {
     const picked = Array.isArray(selected) ? selected : [];
@@ -171,7 +313,8 @@ function QuestionInput({
         </View>
 
         <View style={styles.chips}>
-          {question.options.map((option, slot) => {
+          {order.map((slot) => {
+            const option = question.options[slot] as string;
             const used = picked.includes(slot);
 
             return (
@@ -197,7 +340,8 @@ function QuestionInput({
 
   return (
     <View style={styles.tiles}>
-      {question.options.map((option) => {
+      {order.map((slot) => {
+        const option = question.options[slot] as string;
         const isSelected = selected === option;
         const right = answered && option === question.answer;
         const wrong = answered && isSelected && option !== question.answer;
@@ -232,6 +376,20 @@ function QuestionInput({
   );
 }
 
+/**
+ * What the learner has put forward so far, in words the coach can read.
+ *
+ * Blocks are positions in an array; handing those over would have the coach
+ * hinting about "2, 0, 1". An empty string is honest when nothing is picked —
+ * "they have not chosen yet" is itself useful for a first hint.
+ */
+function describeAttempt(question: Question, selected: string | number[]): string {
+  if (!Array.isArray(selected)) return selected;
+  if (question.type !== 'blocks') return '';
+
+  return selected.map((slot) => question.options[slot] ?? '').join(' ');
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.surface },
   empty: { alignItems: 'center', justifyContent: 'center', padding: space.screen },
@@ -250,7 +408,35 @@ const styles = StyleSheet.create({
   iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   track: { flex: 1, height: 16, borderRadius: radius.pill, backgroundColor: color.surfaceHighest, overflow: 'hidden' },
   trackFill: { height: '100%', borderRadius: radius.pill, backgroundColor: color.primaryContainer },
+  help: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    borderWidth: 2,
+    borderColor: color.tertiaryContainer,
+    borderBottomWidth: edge.tile,
+    backgroundColor: color.tertiaryWash,
+  },
   hearts: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 44, justifyContent: 'flex-end' },
+  goal: {
+    gap: 4,
+    marginBottom: 20,
+    padding: 14,
+    borderRadius: radius.base,
+    borderLeftWidth: 4,
+    borderLeftColor: color.primaryContainer,
+    backgroundColor: color.surfaceContainer,
+  },
+  goalLabel: { ...type.labelSm, color: color.onSurfaceVariant },
+  goalText: { ...type.bodySm, color: color.onSurface },
+  markerDown: { ...type.bodySm, color: color.error, marginBottom: 14 },
+  marking: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 56 },
+  markingText: { ...type.label, fontSize: 15, color: color.onSurfaceVariant },
+  solution: { gap: 4, padding: 12, borderRadius: radius.base, backgroundColor: color.surfaceLowest },
+  solutionLabel: { ...type.labelSm, color: color.onSurfaceVariant },
+  solutionCode: { ...type.code, color: color.onSurface },
   heartsValue: { ...type.label, fontSize: 15, color: color.error },
   prompt: { ...type.prompt, color: color.onSurface, marginBottom: space.screen },
   coach: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginBottom: 22 },
